@@ -39,7 +39,9 @@ namespace KPPasskeyChecker
 
             PasskeyDirectoryService.Initialize(_settings, cacheDir);
 
-            _columnProvider = new PasskeyColumnProvider();
+            // Hand the column provider the KeePass main-window icon so the entry-detail window
+            // shows it in its title bar, like a native KeePass dialog.
+            _columnProvider = new PasskeyColumnProvider(host.MainWindow.Icon);
             host.ColumnProviderPool.Add(_columnProvider);
 
             // A leading separator sets the plugin's entry apart in the Tools menu — the

@@ -27,6 +27,29 @@ Both come from the same `src\` sources, so they are functionally identical — s
 
 Target framework: `.NET 4.8` (`net48`). UI is WinForms (not WPF). **Keep all source C# 5-compatible** — the `.plgx` is recompiled as C# 5 on the user's machine, so modern C# / NRT syntax would break it.
 
+## Release
+
+Releases are scripted by **`release.ps1`** (repo root): a three-stage **branch + PR** flow.
+**`CHANGELOG.md`** (repo root, [Keep a Changelog](https://keepachangelog.com/) format) is the
+single source of the GitHub release notes; the release type is explicit.
+
+```
+release.ps1 -Version <x.y.z> -Type <draft|prerelease|release> [-Stage Preview|Prepare|Publish] [-Force]
+```
+
+- **Preview** (default) — lists the version bump, the files that change, the working-tree changes
+  that would be committed, the CHANGELOG notes and the plan. Changes nothing (the approval gate).
+- **Prepare** — bumps the three version locations (`VersionInfo.txt`, `Properties\AssemblyInfo.cs`,
+  `PluginVersion.cs`), builds, creates branch `release/vX.Y.Z`, commits, pushes and opens a PR.
+  No GitHub release yet.
+- **Publish** — run **after** the PR is merged to `main`: builds from `main` and creates the GitHub
+  release `vX.Y.Z` (tag on `main`) with the `.plgx`/`.dll` assets and the CHANGELOG section as notes.
+
+`-Type` maps to `--draft` / `--prerelease` / (none = a normal "Latest" release). GitHub shows a
+SHA-256 digest per asset itself, so no `SHA256SUMS` file is shipped. Add the new `## [x.y.z]` section
+to `CHANGELOG.md` before releasing. The umbrella **`..\release-all.ps1`** releases both plugins in
+lockstep at one version; run a single repo's `release.ps1` to release one plugin.
+
 ## Architecture
 
 ### Solution layout
@@ -64,7 +87,7 @@ Future plugins (e.g. `KP2faChecker`) get their own `src\<Plugin>\` project that 
 - **Field semantics (verified):** `mfa` = the site supports passkeys/WebAuthn (incl. security keys) as a **second factor**; `passwordless` = passkeys can **replace the password** (primary login). `"allowed"` = optional, `"required"` = forced.
 - **Confirmed doc bug:** the prose descriptions for `mfa`/`passwordless` at `passkeys.2fa.directory/api` are **swapped**. Trust the **endpoint names** (`mfa.json` / `passwordless.json`), which are correct — confirmed empirically (e.g. `wikipedia.org` is in `mfa.json` only: security key as 2FA for certain accounts, not passwordless).
 - **Data source ≠ 1Password's `passkeys.directory`:** the plugin reads **2factorauth's** `passkeys-api.2fa.directory`. 1Password runs a *separate* `passkeys.directory` with different curation/metadata — don't conflate the two when cross-checking an entry.
-- **Per-entry fields the v1 API returns** (the entry key is the domain): `mfa`, `passwordless` (support flags); `documentation` (passkey-setup URL); `recovery` (account-recovery URL); `notes` (free text); `regions` (country codes); `contact` (`{ twitter, facebook, email, form, language }`); and rarely `url`. The v1 API does **not** expose `categories` or `img` (present in the repo, stripped by the API), and it **pre-resolves `additional-domains` into separate top-level domain keys** — so each alias (e.g. `amazon.ca`) is its own entry and matches automatically; the plugin never receives an `additional-domains` field. This is the full set a future per-entry detail view could show.
+- **Per-entry fields the v1 API actually returns** (verified live 2026-06-23 against `supported.json`, 378 entries; entry key = domain): `documentation` (320/378, passkey-setup URL); `mfa` (216) and `passwordless` (193) support flags (`allowed`/`required`); `regions` (139, country codes); `notes` (77, free text); `recovery` (21, account-recovery URL); and `url` (1, negligible — **not** currently mapped). **`regions` values can be exclusions**, e.g. `["-jp"]` = "all regions except JP". The v1 API does **not** return `contact`, `categories`, `img`, or `additional-domains` — the last is **pre-resolved into separate top-level domain keys**, so each alias (e.g. `amazon.ca`) is its own entry and matches automatically. (`PasskeyEntryMapper` still reads `contact`/`additional-domains` for forward-compat, but both are absent in current live data — a detail view should treat `Contact`/`AdditionalDomains` as effectively empty.) This is the full set a per-entry detail view can show.
 - Attribution required wherever data is shown: *"Data sourced from Passkeys Directory by 2factorauth."* (CC BY 4.0).
 - User-Agent format: `{PluginName}/{Version} (+{GitHubRepoURL})`.
 
@@ -107,6 +130,7 @@ The settings dialog is opened from the Tools menu as a standalone dialog — not
 ## Conventions
 
 - All code, identifiers, and comments must be in **English**.
+- **User-facing strings are single-language** (English until localization; when localized, uniformly one language). The one exception is **OS-/framework-provided error messages** (e.g. a .NET `Exception.Message`): these are shown **verbatim and never translated**, so they appear in the user's OS language by design (the user is assumed to read their own OS language). A localized framework message shown next to our English text is therefore **intentional, not a defect** — do not "fix" it.
 - Do **not** merge passkey and 2FA logic into one plugin.
 - Licensed under **GPLv3** (`LICENSE`); any new dependency must be GPL-compatible (this is partly why the plugin sticks to the .NET BCL).
 - Everything under `Libs\` except its `README.md` is **gitignored** — `KeePass.exe` must be supplied there locally for builds; see `Libs\README.md`.
