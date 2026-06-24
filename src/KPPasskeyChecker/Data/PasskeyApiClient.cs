@@ -56,9 +56,10 @@ namespace KPPasskeyChecker.Data
             {
                 case FetchOutcome.Success:
                 {
-                    PasskeyDirectory dir = TryBuildDirectory(result.Content);
+                    string parseError;
+                    PasskeyDirectory dir = TryBuildDirectory(result.Content, out parseError);
                     if (dir == null)
-                        return FallbackOrError(cached, "Failed to parse API response.");
+                        return FallbackOrError(cached, "Failed to parse API response: " + parseError);
 
                     cache.Write(cacheKey, NewEntry(result.Content, result.ETag));
                     return Fresh(dir);
@@ -105,9 +106,10 @@ namespace KPPasskeyChecker.Data
                         return FallbackOrError(cached, "PGP verification failed: " + verification.Error);
 
                     string json = Encoding.UTF8.GetString(verification.SignedContent);
-                    PasskeyDirectory dir = TryBuildDirectory(json);
+                    string parseError;
+                    PasskeyDirectory dir = TryBuildDirectory(json, out parseError);
                     if (dir == null)
-                        return FallbackOrError(cached, "Failed to parse verified API response.");
+                        return FallbackOrError(cached, "Failed to parse verified API response: " + parseError);
 
                     // Only verified JSON is ever written under the signed cache key.
                     cache.Write(cacheKey, NewEntry(json, result.ETag));
@@ -139,7 +141,8 @@ namespace KPPasskeyChecker.Data
                 cached = updated;
             }
 
-            PasskeyDirectory dir = cached != null ? TryBuildDirectory(cached.Content) : null;
+            string parseError;
+            PasskeyDirectory dir = cached != null ? TryBuildDirectory(cached.Content, out parseError) : null;
             return dir != null
                 ? new PasskeyDataResult { Directory = dir, IsFromCache = true, FetchedAt = cached.FetchedAt }
                 : new PasskeyDataResult { ErrorMessage = "Cache missing after 304." };
@@ -170,7 +173,8 @@ namespace KPPasskeyChecker.Data
             if (cached == null)
                 return new PasskeyDataResult { ErrorMessage = error };
 
-            PasskeyDirectory dir = TryBuildDirectory(cached.Content);
+            string parseError;
+            PasskeyDirectory dir = TryBuildDirectory(cached.Content, out parseError);
             if (dir == null)
                 return new PasskeyDataResult { ErrorMessage = error };
 
@@ -184,17 +188,31 @@ namespace KPPasskeyChecker.Data
             };
         }
 
-        private static PasskeyDirectory TryBuildDirectory(string json)
+        private static PasskeyDirectory TryBuildDirectory(string json, out string error)
         {
-            if (string.IsNullOrEmpty(json)) return null;
+            if (string.IsNullOrEmpty(json))
+            {
+                error = "empty response";
+                return null;
+            }
             try
             {
-                var jss = new JavaScriptSerializer { MaxJsonLength = 50 * 1024 * 1024 };
+                var jss = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
                 var raw = jss.Deserialize<Dictionary<string, object>>(json);
-                return raw == null ? null : PasskeyDirectory.Build(raw);
+                if (raw == null)
+                {
+                    error = "response did not deserialize to an object";
+                    return null;
+                }
+                error = null;
+                return PasskeyDirectory.Build(raw);
             }
-            catch
+            catch (Exception ex)
             {
+                // Surface the cause (e.g. malformed JSON or an oversized payload) instead of
+                // discarding it silently. The fail-soft cache fallback is unchanged: callers still
+                // fall back to cached data and only attach this message for diagnostics.
+                error = ex.Message;
                 return null;
             }
         }
