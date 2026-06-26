@@ -1,17 +1,22 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using KeePass.UI;
 using KeePassLib;
 using KPPasskeyChecker.Data;
-using KPPasskeyChecker.Shared.DomainMatching;
-using KPPasskeyChecker.Shared.KeePassUi;
+using KeeRadar.Shared.DomainMatching;
+using KeeRadar.Shared.KeePassUi;
 
 namespace KPPasskeyChecker.UI
 {
     public sealed class PasskeyColumnProvider : ColumnProvider
     {
         public const string ColumnName = "Passkey Support";
+
+        // Entry-string-field name prefix written by KeePass passkey storage (KPEX = KeePass
+        // extension). Presence of at least one such field means the user has already stored a
+        // passkey for this entry. We only ever inspect field *names*, never their (protected) values.
+        private const string StoredPasskeyFieldPrefix = "KPEX_PASSKEY_";
 
         // The KeePass main-window icon, shown in the entry-detail window's title bar so it looks
         // like a native KeePass dialog. Supplied by the plugin (which has the IPluginHost); may be
@@ -30,6 +35,18 @@ namespace KPPasskeyChecker.UI
 
         public override string GetCellData(string strCol, PwEntry pe)
         {
+            // The stored-passkey check runs regardless of directory availability or a URL, so an
+            // entry with a stored passkey but no directory match still shows "Active".
+            bool hasStoredPasskey = HasStoredPasskey(pe);
+
+            string directoryValue = LookupDirectoryValue(pe);
+            return ComposeCellValue(directoryValue, hasStoredPasskey);
+        }
+
+        // Directory-only column value (or empty) for the entry, factoring out availability/URL/lookup
+        // gating from the stored-passkey overlay applied in ComposeCellValue.
+        private static string LookupDirectoryValue(PwEntry pe)
+        {
             if (!PasskeyDirectoryService.IsAvailable) return string.Empty;
 
             PasskeyDirectory dir = PasskeyDirectoryService.Current.Directory;
@@ -40,6 +57,46 @@ namespace KPPasskeyChecker.UI
 
             PasskeyEntry entry = Lookup(dir, host);
             return entry == null ? string.Empty : FormatEntry(entry);
+        }
+
+        /// <summary>
+        /// Combines the directory-derived column value with the entry's stored-passkey state into the
+        /// final cell text. Pure (KeePass-free) so the self-test harness can exercise every case:
+        /// <list type="bullet">
+        /// <item>directory match + stored passkey -&gt; "[Active] &lt;value&gt;"</item>
+        /// <item>directory match + no stored passkey -&gt; "[Inactive] &lt;value&gt;"</item>
+        /// <item>no directory match + stored passkey -&gt; "Active"</item>
+        /// <item>neither -&gt; empty</item>
+        /// </list>
+        /// The status indicator is a prefix so it always sits at position 0 regardless of the
+        /// directory value's length; "[Inactive]" surfaces that a passkey is possible but not yet set up.
+        /// </summary>
+        internal static string ComposeCellValue(string directoryValue, bool hasStoredPasskey)
+        {
+            bool hasDirectoryValue = !string.IsNullOrEmpty(directoryValue);
+
+            if (hasDirectoryValue)
+                return (hasStoredPasskey ? "[Active] " : "[Inactive] ") + directoryValue;
+
+            return hasStoredPasskey ? "Active" : string.Empty;
+        }
+
+        /// <summary>
+        /// True when the entry carries at least one stored-passkey field (name prefix
+        /// <c>KPEX_PASSKEY_</c>). Only field <em>names</em> are inspected via
+        /// <see cref="ProtectedStringDictionary.GetKeys"/> — values are never read or decrypted.
+        /// </summary>
+        internal static bool HasStoredPasskey(PwEntry pe)
+        {
+            if (pe == null) return false;
+
+            foreach (string key in pe.Strings.GetKeys())
+            {
+                if (key != null
+                    && key.StartsWith(StoredPasskeyFieldPrefix, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>

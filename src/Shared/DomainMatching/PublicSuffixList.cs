@@ -1,7 +1,8 @@
-﻿using System;
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+using System;
 using System.Collections.Generic;
 
-namespace KPPasskeyChecker.Shared.DomainMatching
+namespace KeeRadar.Shared.DomainMatching
 {
     /// <summary>
     /// Minimal Public Suffix List implementation.

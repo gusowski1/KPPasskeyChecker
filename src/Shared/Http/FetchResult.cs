@@ -1,4 +1,5 @@
-namespace KPPasskeyChecker.Shared.Http
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+namespace KeeRadar.Shared.Http
 {
     public sealed class FetchResult
     {

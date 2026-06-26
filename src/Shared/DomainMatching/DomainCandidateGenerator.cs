@@ -1,10 +1,11 @@
-﻿using System;
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace KPPasskeyChecker.Shared.DomainMatching
+namespace KeeRadar.Shared.DomainMatching
 {
     /// <summary>
     /// Walks from a full hostname down to the registrable domain (eTLD+1),

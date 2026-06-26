@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using KPPasskeyChecker.Settings;
-using KPPasskeyChecker.Shared.Caching;
-using KPPasskeyChecker.Shared.DomainMatching;
-using KPPasskeyChecker.Shared.Http;
+using KeeRadar.Shared.Caching;
+using KeeRadar.Shared.DomainMatching;
+using KeeRadar.Shared.Http;
 
 namespace KPPasskeyChecker.Data
 {

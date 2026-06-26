@@ -1,6 +1,7 @@
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
 using KeePass.Plugins;
 
-namespace KPPasskeyChecker.Shared.KeePassUi
+namespace KeeRadar.Shared.KeePassUi
 {
     public abstract class PluginSettingsStoreBase
     {
