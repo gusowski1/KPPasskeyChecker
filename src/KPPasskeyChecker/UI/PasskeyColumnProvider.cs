@@ -56,6 +56,18 @@ namespace KPPasskeyChecker.UI
         public override void PerformCellAction(string strColumnName, PwEntry pe)
         {
             if (strColumnName != ColumnName || pe == null) return;
+            ShowDetailDialog(pe);
+        }
+
+        /// <summary>
+        /// Runs the same check-and-show flow that a double-click / Enter on the
+        /// "Passkey Support" cell triggers, and opens the shared entry-detail dialog for the
+        /// supplied entry. Exposed so the plugin can reuse the exact same flow from the entry
+        /// context-menu action — no second dialog, no duplicated lookup logic.
+        /// </summary>
+        public void ShowDetailDialog(PwEntry pe)
+        {
+            if (pe == null) return;
 
             string host = ExtractHost(pe);
             string domain = host ?? string.Empty;
@@ -108,7 +120,7 @@ namespace KPPasskeyChecker.UI
             return null;
         }
 
-        private static string FormatEntry(PasskeyEntry entry)
+        internal static string FormatEntry(PasskeyEntry entry)
         {
             if (entry.SupportsPasswordless && entry.SupportsMfa)
                 return "Login + 2FA";

@@ -25,7 +25,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 [assembly: Guid("a8e6f3c2-1b4d-4e7a-9c5f-2d3e4f5a6b7c")]
 
-// Plugin version. Keep in sync with PluginVersion.Current ("0.2.0").
+// Plugin version. Keep in sync with PluginVersion.Current ("0.3.0").
 // Do NOT use asterisks here (KeePass requires a comparable, fixed version).
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
+[assembly: AssemblyVersion("0.3.0.0")]
+[assembly: AssemblyFileVersion("0.3.0.0")]

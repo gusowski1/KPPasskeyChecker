@@ -1,0 +1,208 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using KPPasskeyChecker.Data;
+using KPPasskeyChecker.Shared.Pgp;
+using KPPasskeyChecker.UI;
+
+namespace KPPasskeyChecker.SelfCheck
+{
+    /// <summary>
+    /// Pure-logic self-test harness for KPPasskeyChecker. Compiled together with the real plugin
+    /// sources (Shared + KPPasskeyChecker) by run-selfcheck.ps1 using the in-box csc (C# 5), so it
+    /// can reach internal types like PasskeyEntryMapper. It exercises only logic that has no
+    /// dependency on a running KeePass process, the network, or the file system.
+    ///
+    /// Exit code 0 = all checks passed; exit code 1 = at least one check failed (stops at the
+    /// first failure). Every assertion prints a single PASS/FAIL line.
+    /// </summary>
+    internal static class SelfCheck
+    {
+        private static int _failures;
+
+        private static int Main()
+        {
+            Console.WriteLine("KPPasskeyChecker self-check");
+            Console.WriteLine("===========================");
+
+            CheckSupportLevelParsing();
+            CheckScopeEndpointMapping();
+            CheckSignedCacheKeyDistinctness();
+            CheckFormatEntry();
+            CheckDomainCandidatesEtldPlusOne();
+            CheckPgpPath();
+
+            Console.WriteLine();
+            if (_failures == 0)
+            {
+                Console.WriteLine("All checks passed.");
+                return 0;
+            }
+
+            Console.WriteLine(_failures + " check(s) FAILED.");
+            return 1;
+        }
+
+        // --- mfa / passwordless parsing (PasskeyEntryMapper.ParseLevel via Map) ----------------
+        private static void CheckSupportLevelParsing()
+        {
+            Section("mfa / passwordless parsing");
+
+            PasskeyEntry allowed = Map("example.com", Field("passwordless", "allowed"));
+            Assert("passwordless \"allowed\" -> Allowed",
+                allowed.Passwordless == PasskeySupportLevel.Allowed);
+
+            PasskeyEntry required = Map("example.com", Field("mfa", "required"));
+            Assert("mfa \"required\" -> Required",
+                required.Mfa == PasskeySupportLevel.Required);
+
+            PasskeyEntry missing = Map("example.com", new Dictionary<string, object>());
+            Assert("missing passwordless -> null",
+                missing.Passwordless == null);
+            Assert("missing mfa -> null",
+                missing.Mfa == null);
+
+            PasskeyEntry invalid = Map("example.com", Field("mfa", "sometimes"));
+            Assert("invalid mfa value -> null (fail-safe)",
+                invalid.Mfa == null);
+
+            PasskeyEntry mixedCase = Map("example.com", Field("passwordless", "ReQuIrEd"));
+            Assert("case-insensitive \"ReQuIrEd\" -> Required",
+                mixedCase.Passwordless == PasskeySupportLevel.Required);
+        }
+
+        // --- scope -> endpoint mapping (PasskeyEndpoints.ForScope) ------------------------------
+        private static void CheckScopeEndpointMapping()
+        {
+            Section("scope -> endpoint mapping");
+
+            Assert("PasswordlessOnly -> passwordless.json",
+                PasskeyEndpoints.ForScope(PasskeyDataScope.PasswordlessOnly)
+                    .EndsWith("/passwordless.json", StringComparison.Ordinal));
+            Assert("MfaOnly -> mfa.json",
+                PasskeyEndpoints.ForScope(PasskeyDataScope.MfaOnly)
+                    .EndsWith("/mfa.json", StringComparison.Ordinal));
+            Assert("AnySupport -> supported.json",
+                PasskeyEndpoints.ForScope(PasskeyDataScope.AnySupport)
+                    .EndsWith("/supported.json", StringComparison.Ordinal));
+
+            // The signature endpoint is the JSON endpoint plus ".sig".
+            Assert("SignatureForScope appends .sig",
+                PasskeyEndpoints.SignatureForScope(PasskeyDataScope.MfaOnly)
+                    == PasskeyEndpoints.ForScope(PasskeyDataScope.MfaOnly) + ".sig");
+        }
+
+        // --- signed vs unsigned cache-key distinctness -----------------------------------------
+        private static void CheckSignedCacheKeyDistinctness()
+        {
+            Section("signed / unsigned cache-key distinctness");
+
+            foreach (PasskeyDataScope scope in
+                     (PasskeyDataScope[])Enum.GetValues(typeof(PasskeyDataScope)))
+            {
+                string plain  = PasskeyEndpoints.CacheKey(scope);
+                string signed = PasskeyEndpoints.SignedCacheKey(scope);
+                Assert("CacheKey != SignedCacheKey for " + scope, plain != signed);
+                Assert("SignedCacheKey for " + scope + " carries _signed suffix",
+                    signed.EndsWith("_signed", StringComparison.Ordinal));
+                Assert("plain CacheKey for " + scope + " has no _signed suffix",
+                    !plain.EndsWith("_signed", StringComparison.Ordinal));
+            }
+        }
+
+        // --- FormatEntry / column value --------------------------------------------------------
+        // Exercises the production PasskeyColumnProvider.FormatEntry directly (it is internal and
+        // reachable here because the harness is compiled together with the plugin sources).
+        private static void CheckFormatEntry()
+        {
+            Section("FormatEntry / column value");
+
+            Assert("passwordless + mfa -> \"Login + 2FA\"",
+                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, PasskeySupportLevel.Required)) == "Login + 2FA");
+            Assert("passwordless only -> \"Login\"",
+                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, null)) == "Login");
+            Assert("mfa only -> \"2FA\"",
+                PasskeyColumnProvider.FormatEntry(Entry(null, PasskeySupportLevel.Required)) == "2FA");
+            Assert("neither -> empty",
+                PasskeyColumnProvider.FormatEntry(Entry(null, null)) == string.Empty);
+        }
+
+        // --- PSL / eTLD+1 smoke test (shared with KP2FAChecker via SharedChecks.cs) --------------
+        private static void CheckDomainCandidatesEtldPlusOne()
+        {
+            SharedChecks.CheckDomainCandidatesEtldPlusOne(Section, Assert);
+        }
+
+        // --- PGP path --------------------------------------------------------------------------
+        // Exercises the full offline verification path against a committed real ".sig" fixture
+        // (an RSA-4096 / SHA-512 inline OpenPGP message captured from passkeys-api.2fa.directory)
+        // using the pinned PasskeyTrustAnchor key. No network access: the fixture is read from disk
+        // next to the harness .exe. A second pass uses a deliberately corrupted key to prove that
+        // a wrong key fails closed.
+        private static void CheckPgpPath()
+        {
+            Section("PGP signature path");
+
+            string fixturePath = Path.Combine(
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fixtures"), "mfa.json.sig");
+            byte[] sigBytes = File.ReadAllBytes(fixturePath);
+
+            PgpVerificationResult result = PasskeyTrustAnchor.CreateVerifier().Verify(sigBytes);
+            Assert("Verify(fixture) returns valid result with non-null JSON",
+                result.IsValid && result.SignedContent != null);
+
+            string json = result.SignedContent != null
+                ? new string(result.SignedContent.Select(b => (char)b).ToArray()) : string.Empty;
+            Assert("Extracted JSON is valid (non-empty, starts with '{')",
+                json.Length > 0 && json.TrimStart()[0] == '{');
+
+            PgpVerificationResult wrongKey =
+                new OpenPgpSignatureVerifier(CorruptedKey()).Verify(sigBytes);
+            Assert("Verify with wrong key returns invalid result", !wrongKey.IsValid);
+        }
+
+        // Builds an RSA public key from the pinned CERT RDATA with a single modulus byte flipped,
+        // so it parses cleanly but can never match the real signature (fail-closed wrong-key case).
+        private static OpenPgpRsaPublicKey CorruptedKey()
+        {
+            byte[] rdata = SharedChecks.HexToBytes(PasskeyTrustAnchor.CertRecordHex);
+            rdata[rdata.Length - 8] ^= 0xFF; // flip a byte well inside the modulus
+            return OpenPgpRsaPublicKey.FromCertRecord(rdata);
+        }
+
+        // --- helpers ---------------------------------------------------------------------------
+        private static PasskeyEntry Map(string domain, Dictionary<string, object> data)
+        {
+            return PasskeyEntryMapper.Map(domain, data);
+        }
+
+        private static Dictionary<string, object> Field(string key, object value)
+        {
+            return new Dictionary<string, object> { { key, value } };
+        }
+
+        private static PasskeyEntry Entry(PasskeySupportLevel? passwordless, PasskeySupportLevel? mfa)
+        {
+            return new PasskeyEntry { Passwordless = passwordless, Mfa = mfa };
+        }
+
+        private static void Section(string title)
+        {
+            Console.WriteLine();
+            Console.WriteLine("[" + title + "]");
+        }
+
+        private static void Assert(string description, bool condition)
+        {
+            if (condition)
+            {
+                Console.WriteLine("  PASS  " + description);
+                return;
+            }
+            _failures++;
+            Console.WriteLine("  FAIL  " + description);
+        }
+    }
+}
