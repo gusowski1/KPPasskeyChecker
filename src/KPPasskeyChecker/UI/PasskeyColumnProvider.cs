@@ -120,7 +120,7 @@ namespace KPPasskeyChecker.UI
             return null;
         }
 
-        private static string FormatEntry(PasskeyEntry entry)
+        internal static string FormatEntry(PasskeyEntry entry)
         {
             if (entry.SupportsPasswordless && entry.SupportsMfa)
                 return "Login + 2FA";
