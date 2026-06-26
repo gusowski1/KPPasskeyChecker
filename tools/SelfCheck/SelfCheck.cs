@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using KPPasskeyChecker.Data;
-using KPPasskeyChecker.Shared.DomainMatching;
 using KPPasskeyChecker.Shared.Pgp;
+using KPPasskeyChecker.UI;
 
 namespace KPPasskeyChecker.SelfCheck
 {
@@ -113,61 +113,26 @@ namespace KPPasskeyChecker.SelfCheck
         }
 
         // --- FormatEntry / column value --------------------------------------------------------
-        // PasskeyColumnProvider.FormatEntry is private and lives on a ColumnProvider subclass that
-        // cannot be instantiated without KeePass UI types, so it is mirrored here from the source
-        // (the mapping is small and asserted to stay in lock-step with the support-level fields).
+        // Exercises the production PasskeyColumnProvider.FormatEntry directly (it is internal and
+        // reachable here because the harness is compiled together with the plugin sources).
         private static void CheckFormatEntry()
         {
             Section("FormatEntry / column value");
 
             Assert("passwordless + mfa -> \"Login + 2FA\"",
-                FormatEntry(Entry(PasskeySupportLevel.Allowed, PasskeySupportLevel.Required)) == "Login + 2FA");
+                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, PasskeySupportLevel.Required)) == "Login + 2FA");
             Assert("passwordless only -> \"Login\"",
-                FormatEntry(Entry(PasskeySupportLevel.Allowed, null)) == "Login");
+                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, null)) == "Login");
             Assert("mfa only -> \"2FA\"",
-                FormatEntry(Entry(null, PasskeySupportLevel.Required)) == "2FA");
+                PasskeyColumnProvider.FormatEntry(Entry(null, PasskeySupportLevel.Required)) == "2FA");
             Assert("neither -> empty",
-                FormatEntry(Entry(null, null)) == string.Empty);
+                PasskeyColumnProvider.FormatEntry(Entry(null, null)) == string.Empty);
         }
 
-        // Mirror of PasskeyColumnProvider.FormatEntry.
-        private static string FormatEntry(PasskeyEntry entry)
-        {
-            if (entry.SupportsPasswordless && entry.SupportsMfa) return "Login + 2FA";
-            if (entry.SupportsPasswordless) return "Login";
-            if (entry.SupportsMfa) return "2FA";
-            return string.Empty;
-        }
-
-        // --- PSL / eTLD+1 smoke test -----------------------------------------------------------
-        // DomainCandidateGenerator pulls its PSL from the network on a background thread, so its
-        // registrable-domain stopping point cannot be exercised offline. The eTLD+1 logic itself
-        // lives in PublicSuffixList, which is fully testable in isolation (Parse + lookup). We test
-        // that, plus the generator's no-PSL 2-label fallback (its deterministic offline behaviour).
+        // --- PSL / eTLD+1 smoke test (shared with KP2FAChecker via SharedChecks.cs) --------------
         private static void CheckDomainCandidatesEtldPlusOne()
         {
-            Section("PSL / eTLD+1 smoke test");
-
-            PublicSuffixList psl = PublicSuffixList.Parse(
-                "// test fixture\n" +
-                "com\n" +
-                "co.uk\n" +
-                "uk\n");
-
-            Assert("www.example.co.uk -> registrable example.co.uk",
-                psl.GetRegistrableDomain("www.example.co.uk") == "example.co.uk");
-            Assert("mail.google.com -> registrable google.com",
-                psl.GetRegistrableDomain("mail.google.com") == "google.com");
-
-            // Generator fallback (no PSL loaded in-process): walks down to the 2-label minimum.
-            var candidates = DomainCandidateGenerator.GetCandidates("mail.google.com").ToList();
-            Assert("generator yields full host first",
-                candidates.Count > 0 && candidates[0] == "mail.google.com");
-            Assert("generator stops at 2-label fallback (contains google.com)",
-                candidates.Contains("google.com"));
-            Assert("generator strips leading www.",
-                DomainCandidateGenerator.GetCandidates("www.example.co.uk")
-                    .First() == "example.co.uk");
+            SharedChecks.CheckDomainCandidatesEtldPlusOne(Section, Assert);
         }
 
         // --- PGP path --------------------------------------------------------------------------
@@ -202,22 +167,9 @@ namespace KPPasskeyChecker.SelfCheck
         // so it parses cleanly but can never match the real signature (fail-closed wrong-key case).
         private static OpenPgpRsaPublicKey CorruptedKey()
         {
-            byte[] rdata = HexToBytes(CertRecordHex);
+            byte[] rdata = SharedChecks.HexToBytes(PasskeyTrustAnchor.CertRecordHex);
             rdata[rdata.Length - 8] ^= 0xFF; // flip a byte well inside the modulus
             return OpenPgpRsaPublicKey.FromCertRecord(rdata);
-        }
-
-        // Mirror of the pinned CERT RDATA (PasskeyTrustAnchor.CertRecordHex is private); used only
-        // to derive a deliberately corrupted key for the wrong-key assertion.
-        private const string CertRecordHex =
-            "000300000099020d04604596b2011000d5291dc2ac2b30ffb2930604f90405214fd010630c5a03b9bddcee7af66a66640b703f38ab3ca1960898897f7ecc7bf7d6e65178e80642ffaf6f7cc85d1ec2cb0018ae9d4d898dead5b51ce4e0629d0fe2ce3d435bc33ffcc09a41874e08e867741d2181235450969f195c072fb933776cc3263a21438da92b240e74f26eb4bac5d4059f83eab007ce7d681233b9d36db0cbe98bf6a8d5fd91ad813651897f6f2ea2b35c071c898ccb3f900c70ba052c6708cd148dbde3000bc729eb4bb6e8b195545a81bd511e4cb6bcd734fcee73cecdd664b5c7559c66c637c333392a6969d6246faca4f5732151f3c05f25f66f6d0cd5867664c4b7366aa37a6c69bf8bd53e59615dc89a0a8953337af25d6c229ca1cdcff6418f07f5eb76da7dc867bbf4995fd4897e5e2030002e57503125c4681be608babde9cfcaa9c837c4ed1ec904bd5590de941d8c9c2c8c3903ed15aed08704eec0045137422017d3c6e25823cbd22f55e2fa7780348ddbf5205a55fb8f489c59c31047491f8b2f11ec4d31945739b98dad05493a3ba7659f43ff666088022981a0b1d99068a7345349355cb64a3b98a33b883fddc858ea159dc4205ce4591ec3359b0155efd597710d7eb2e5d0ebefb53c4753cd1f6fcf2f2f4a9da381986a056fe30efb91557709de01221a9459d97c25183ce0c80bdf0e4fa507649cff0739a170d95b8793491048604f00070011010001";
-
-        private static byte[] HexToBytes(string hex)
-        {
-            byte[] bytes = new byte[hex.Length / 2];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
-            return bytes;
         }
 
         // --- helpers ---------------------------------------------------------------------------
