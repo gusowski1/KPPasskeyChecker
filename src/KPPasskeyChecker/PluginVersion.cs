@@ -2,7 +2,7 @@ namespace KPPasskeyChecker
 {
     internal static class PluginVersion
     {
-        public const string Current = "0.3.0";
+        public const string Current = "0.4.0";
         public const string RepoUrl = "https://github.com/gusowski1/KPPasskeyChecker";
 
         // KeePass downloads this file and compares "KPPasskeyChecker:<version>" (the
