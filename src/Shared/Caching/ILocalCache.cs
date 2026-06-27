@@ -1,4 +1,5 @@
-﻿namespace KPPasskeyChecker.Shared.Caching
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+namespace KeeRadar.Shared.Caching
 {
     public interface ILocalCache
     {

@@ -1,10 +1,12 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using KeePassLib;
+using KeePassLib.Security;
 using KPPasskeyChecker.Data;
-using KPPasskeyChecker.Shared.Pgp;
+using KeeRadar.Shared.Pgp;
 using KPPasskeyChecker.UI;
 
 namespace KPPasskeyChecker.SelfCheck
@@ -31,6 +33,7 @@ namespace KPPasskeyChecker.SelfCheck
             CheckScopeEndpointMapping();
             CheckSignedCacheKeyDistinctness();
             CheckFormatEntry();
+            CheckStoredPasskeyState();
             CheckDomainCandidatesEtldPlusOne();
             CheckPgpPath();
 
@@ -127,6 +130,58 @@ namespace KPPasskeyChecker.SelfCheck
                 PasskeyColumnProvider.FormatEntry(Entry(null, PasskeySupportLevel.Required)) == "2FA");
             Assert("neither -> empty",
                 PasskeyColumnProvider.FormatEntry(Entry(null, null)) == string.Empty);
+        }
+
+        // --- stored-passkey state (story P-J) --------------------------------------------------
+        // Exercises the production HasStoredPasskey field-name scan and the ComposeCellValue overlay
+        // covering all seven story scenarios. HasStoredPasskey runs against a real PwEntry (the
+        // KeePass assembly is already JIT-loaded by the FormatEntry checks above).
+        private static void CheckStoredPasskeyState()
+        {
+            Section("stored-passkey state (column overlay)");
+
+            // ComposeCellValue truth table -----------------------------------------------------
+            // 2: directory match + stored passkey -> "[Active] <value>" (one prefix only).
+            Assert("dir \"Login\" + stored -> \"[Active] Login\"",
+                PasskeyColumnProvider.ComposeCellValue("Login", true) == "[Active] Login");
+            // 1: directory match + no stored passkey -> "[Inactive] <value>".
+            Assert("dir \"Login\" + not stored -> \"[Inactive] Login\"",
+                PasskeyColumnProvider.ComposeCellValue("Login", false) == "[Inactive] Login");
+            // 3 + 5: no directory match + stored passkey -> "Active".
+            Assert("no dir + stored -> \"Active\"",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, true) == "Active");
+            // 4 + 5: neither -> empty.
+            Assert("no dir + not stored -> empty",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, false) == string.Empty);
+            Assert("null dir + stored -> \"Active\"",
+                PasskeyColumnProvider.ComposeCellValue(null, true) == "Active");
+
+            // HasStoredPasskey field-name scan -------------------------------------------------
+            Assert("no fields -> not stored",
+                !PasskeyColumnProvider.HasStoredPasskey(EntryWith()));
+            Assert("KPEX_PASSKEY_ field -> stored",
+                PasskeyColumnProvider.HasStoredPasskey(EntryWith("KPEX_PASSKEY_CredentialId")));
+            // 6: multiple matching fields still count as one (and ComposeCellValue never doubles).
+            Assert("multiple KPEX_PASSKEY_ fields -> stored (no double prefix)",
+                PasskeyColumnProvider.HasStoredPasskey(
+                    EntryWith("KPEX_PASSKEY_CredentialId", "KPEX_PASSKEY_PrivateKey")));
+            // Case-insensitive prefix match.
+            Assert("lowercase kpex_passkey_ field -> stored",
+                PasskeyColumnProvider.HasStoredPasskey(EntryWith("kpex_passkey_x")));
+            // Unrelated standard/custom fields must not trigger.
+            Assert("UserName/Password/Title -> not stored",
+                !PasskeyColumnProvider.HasStoredPasskey(
+                    EntryWith(PwDefs.UserNameField, PwDefs.PasswordField, PwDefs.TitleField)));
+        }
+
+        // Builds a PwEntry carrying the given string-field names (empty values; the production code
+        // only reads names). The .sig/value is irrelevant — scenario 7 forbids reading values.
+        private static PwEntry EntryWith(params string[] fieldNames)
+        {
+            PwEntry pe = new PwEntry(true, true);
+            foreach (string name in fieldNames)
+                pe.Strings.Set(name, new ProtectedString(false, "x"));
+            return pe;
         }
 
         // --- PSL / eTLD+1 smoke test (shared with KP2FAChecker via SharedChecks.cs) --------------

@@ -1,6 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using KPPasskeyChecker.Data;
-using KPPasskeyChecker.Shared.KeePassUi;
+using KeeRadar.Shared.KeePassUi;
 
 namespace KPPasskeyChecker.UI
 {

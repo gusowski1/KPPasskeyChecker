@@ -1,7 +1,8 @@
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
 using System;
 using System.IO;
 
-namespace KPPasskeyChecker.Shared.Caching
+namespace KeeRadar.Shared.Caching
 {
     public sealed class FileSystemJsonCache : ILocalCache
     {

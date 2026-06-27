@@ -13,9 +13,9 @@ entry list. For each entry it looks up the entry's domain in the
 and whether it offers passwordless sign-in, passkeys as a second factor (2FA), or both.
 
 KPPasskeyChecker is **informational only**: it tells you which websites support passkeys so you know
-where you could enable one. It does not create, store, or manage passkeys (or any other
-credentials) and never modifies your entries — it only reads each entry's website address to
-look it up in the directory.
+where you could enable one. It does not create or manage passkeys and never modifies your entries —
+it only reads each entry's website address and field names (never field values) to look up the site
+in the directory and detect whether a passkey is already stored.
 
 ![The Passkey Support column in the KeePass entry list, showing Login / 2FA / Login + 2FA per site](Doc/KPPasskeyChecker01.png)
 
@@ -25,8 +25,8 @@ look it up in the directory.
 
 ## Features
 
-- **Passkey Support column** in the main entry list, showing `Login`, `2FA`, or `Login + 2FA`
-  for each entry's domain (blank when the site is not in the directory).
+- **Passkey Support column** in the main entry list, showing whether a site supports passkeys
+  and whether you have already stored one in KeePass — at a glance, for every entry.
 - **Smart domain matching.** The lookup walks from the full host down to the registrable
   domain (eTLD+1, using the Public Suffix List), so `mail.example.co.uk` matches an
   `example.co.uk` entry, most-specific first.
@@ -72,15 +72,26 @@ once the data arrives.
 
 ### What the column shows
 
+The column combines two signals: what the site supports (from the Passkeys Directory) and whether
+you already have a passkey stored in this KeePass entry.
+
 | Value | Meaning |
 | --- | --- |
-| **Login** | You can sign in with a passkey *instead of* your password (passwordless). |
-| **2FA** | A passkey / security key is supported as a *second factor* — on top of your password. |
-| **Login + 2FA** | Both of the above. |
-| *(blank)* | The site isn't in the directory. |
+| **[Active] Login** | Passwordless passkey supported — and already stored in KeePass. |
+| **[Active] 2FA** | Passkey as a second factor supported — and already stored. |
+| **[Active] Login + 2FA** | Both modes supported — and already stored. |
+| **[Inactive] Login** | Passwordless passkey supported, but not yet stored in KeePass. |
+| **[Inactive] 2FA** | Passkey as 2FA supported, but not yet stored. |
+| **[Inactive] Login + 2FA** | Both modes supported, but not yet stored. |
+| **Active** | A passkey is stored in KeePass, but the site isn't in the directory. |
+| *(blank)* | The site isn't in the directory and no passkey is stored. |
 
 > **2FA** here means *a passkey/security key used as a second factor* (e.g. a hardware key in
 > addition to your password) — **not** generic two-factor auth such as a TOTP authenticator app.
+
+> The stored-passkey detection only checks whether the entry contains fields with the
+> `KPEX_PASSKEY_` prefix (set by passkey-capable KeePass extensions). It reads field **names**
+> only — never field values or secrets.
 
 ### Settings
 

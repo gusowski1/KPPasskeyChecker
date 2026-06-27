@@ -155,6 +155,19 @@ KeePass's built-in plugin update check (https://keepass.info/help/v2_dev/plg_ind
 
 The settings dialog is opened from the Tools menu as a standalone dialog — not a tab inside KeePass's native Options dialog (not a stable plugin API surface).
 
+## Shared code — cross-plugin sync rule
+
+`src\Shared` is the **canonical source** for both plugins. KP2FAChecker carries a real copy that must be kept in sync.
+
+**After any task that modifies files under `src\Shared\`:**
+
+1. Run `.\sync-shared.ps1` in the KP2FAChecker repo (`cd ..\KP2FAChecker; .\sync-shared.ps1`).
+2. Build KP2FAChecker: `cd ..\KP2FAChecker; .\build.ps1`
+3. Confirm the build succeeds (exit code 0, both `.plgx` and `.dll` produced).
+4. Only then report the task as done and provide the suggested commit message.
+
+Do not skip this even if the Shared change looks trivial — KP2FAChecker must compile cleanly before the task is considered finished.
+
 ## Conventions
 
 - All code, identifiers, and comments must be in **English**.

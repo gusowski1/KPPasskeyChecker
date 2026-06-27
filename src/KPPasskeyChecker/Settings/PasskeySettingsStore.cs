@@ -1,6 +1,6 @@
-using KeePass.Plugins;
+﻿using KeePass.Plugins;
 using KPPasskeyChecker.Data;
-using KPPasskeyChecker.Shared.KeePassUi;
+using KeeRadar.Shared.KeePassUi;
 
 namespace KPPasskeyChecker.Settings
 {

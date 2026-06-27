@@ -1,4 +1,5 @@
-namespace KPPasskeyChecker.Shared.Pgp
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+namespace KeeRadar.Shared.Pgp
 {
     /// <summary>
     /// Outcome of verifying an OpenPGP signed message. On success <see cref="SignedContent"/>

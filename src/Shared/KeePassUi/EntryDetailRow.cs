@@ -1,6 +1,7 @@
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
 using System.Collections.Generic;
 
-namespace KPPasskeyChecker.Shared.KeePassUi
+namespace KeeRadar.Shared.KeePassUi
 {
     /// <summary>
     /// One typed row in the entry detail view. A plugin maps its own entry model to a list of these
