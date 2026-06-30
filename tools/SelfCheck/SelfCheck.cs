@@ -147,14 +147,14 @@ namespace KPPasskeyChecker.SelfCheck
             // 1: directory match + no stored passkey -> "[Inactive] <value>".
             Assert("dir \"Login\" + not stored -> \"[Inactive] Login\"",
                 PasskeyColumnProvider.ComposeCellValue("Login", false) == "[Inactive] Login");
-            // 3 + 5: no directory match + stored passkey -> "Active".
-            Assert("no dir + stored -> \"Active\"",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, true) == "Active");
+            // 3 + 5: no directory match + stored passkey -> "[Active]" (consistent bracket form).
+            Assert("no dir + stored -> \"[Active]\"",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, true) == "[Active]");
             // 4 + 5: neither -> empty.
             Assert("no dir + not stored -> empty",
                 PasskeyColumnProvider.ComposeCellValue(string.Empty, false) == string.Empty);
-            Assert("null dir + stored -> \"Active\"",
-                PasskeyColumnProvider.ComposeCellValue(null, true) == "Active");
+            Assert("null dir + stored -> \"[Active]\"",
+                PasskeyColumnProvider.ComposeCellValue(null, true) == "[Active]");
 
             // HasStoredPasskey field-name scan -------------------------------------------------
             Assert("no fields -> not stored",

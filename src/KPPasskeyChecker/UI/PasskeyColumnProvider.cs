@@ -65,11 +65,12 @@ namespace KPPasskeyChecker.UI
         /// <list type="bullet">
         /// <item>directory match + stored passkey -&gt; "[Active] &lt;value&gt;"</item>
         /// <item>directory match + no stored passkey -&gt; "[Inactive] &lt;value&gt;"</item>
-        /// <item>no directory match + stored passkey -&gt; "Active"</item>
+        /// <item>no directory match + stored passkey -&gt; "[Active]"</item>
         /// <item>neither -&gt; empty</item>
         /// </list>
         /// The status indicator is a prefix so it always sits at position 0 regardless of the
         /// directory value's length; "[Inactive]" surfaces that a passkey is possible but not yet set up.
+        /// The "[Active]" form is used consistently whether or not the domain is in the directory.
         /// </summary>
         internal static string ComposeCellValue(string directoryValue, bool hasStoredPasskey)
         {
@@ -78,7 +79,7 @@ namespace KPPasskeyChecker.UI
             if (hasDirectoryValue)
                 return (hasStoredPasskey ? "[Active] " : "[Inactive] ") + directoryValue;
 
-            return hasStoredPasskey ? "Active" : string.Empty;
+            return hasStoredPasskey ? "[Active]" : string.Empty;
         }
 
         /// <summary>
