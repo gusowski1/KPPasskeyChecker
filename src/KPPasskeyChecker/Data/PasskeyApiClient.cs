@@ -128,7 +128,7 @@ namespace KPPasskeyChecker.Data
         private OpenPgpSignatureVerifier GetVerifier()
         {
             if (_verifier == null)
-                _verifier = PasskeyTrustAnchor.CreateVerifier();
+                _verifier = DirectoryTrustAnchor.CreateVerifier();
             return _verifier;
         }
 

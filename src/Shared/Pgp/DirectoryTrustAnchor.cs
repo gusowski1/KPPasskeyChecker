@@ -1,7 +1,7 @@
-﻿using System;
-using KeeRadar.Shared.Pgp;
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared. Edit only there; propagate to consumer repos via sync-shared.ps1. Do not edit synced copies.
+using System;
 
-namespace KPPasskeyChecker.Data
+namespace KeeRadar.Shared.Pgp
 {
     /// <summary>
     /// The pinned 2FA Directory code-signing key used to verify downloaded ".sig" files.
@@ -13,10 +13,14 @@ namespace KPPasskeyChecker.Data
     /// rotates this key, the plugin must be updated — the verifier will refuse to validate against
     /// any other key, which is the intended fail-closed behaviour.
     ///
+    /// This is the SAME signing key 2factorauth uses across the directory (both the passkeys data
+    /// and the 2FA data use it); the pinned RDATA hex and fingerprint are identical between
+    /// KPPasskeyChecker and KP2FAChecker.
+    ///
     /// UID:        2FactorAuth (Code signing key) &lt;security@2fa.directory&gt;
     /// Algorithm:  RSA-4096
     /// </summary>
-    internal static class PasskeyTrustAnchor
+    internal static class DirectoryTrustAnchor
     {
         /// <summary>Expected v4 fingerprint of <see cref="CertRecordHex"/>; asserted at load time.</summary>
         public const string ExpectedFingerprint = "0D504141CE290061BD4F95A4AD8483C1CBABC36D";
