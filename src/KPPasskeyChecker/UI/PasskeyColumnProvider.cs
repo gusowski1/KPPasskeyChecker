@@ -39,14 +39,21 @@ namespace KPPasskeyChecker.UI
             // entry with a stored passkey but no directory match still shows "Active".
             bool hasStoredPasskey = HasStoredPasskey(pe);
 
-            string directoryValue = LookupDirectoryValue(pe);
-            return ComposeCellValue(directoryValue, hasStoredPasskey);
+            bool directoryHasData;
+            string directoryValue = LookupDirectoryValue(pe, out directoryHasData);
+            return ComposeCellValue(directoryValue, hasStoredPasskey, directoryHasData);
         }
 
         // Directory-only column value (or empty) for the entry, factoring out availability/URL/lookup
-        // gating from the stored-passkey overlay applied in ComposeCellValue.
-        private static string LookupDirectoryValue(PwEntry pe)
+        // gating from the stored-passkey overlay applied in ComposeCellValue. directoryHasData (story
+        // P-Q) is true only when the directory was actually consultable for this entry (service
+        // available, directory loaded, entry has a lookupable host) and simply had no match — it is
+        // false when the directory isn't loaded yet/errored, or the entry has no URL, so the caller
+        // can distinguish "checked, nothing found" ([No Data]) from "couldn't check" (blank).
+        private static string LookupDirectoryValue(PwEntry pe, out bool directoryHasData)
         {
+            directoryHasData = false;
+
             if (!PasskeyDirectoryService.IsAvailable) return string.Empty;
 
             PasskeyDirectory dir = PasskeyDirectoryService.Current.Directory;
@@ -54,6 +61,8 @@ namespace KPPasskeyChecker.UI
 
             string host = ExtractHost(pe);
             if (host == null) return string.Empty;
+
+            directoryHasData = true;
 
             PasskeyEntry entry = Lookup(dir, host);
             return entry == null ? string.Empty : FormatEntry(entry);
@@ -66,20 +75,28 @@ namespace KPPasskeyChecker.UI
         /// <item>directory match + stored passkey -&gt; "[Active] &lt;value&gt;"</item>
         /// <item>directory match + no stored passkey -&gt; "[Inactive] &lt;value&gt;"</item>
         /// <item>no directory match + stored passkey -&gt; "[Active]"</item>
-        /// <item>neither -&gt; empty</item>
+        /// <item>no directory match + not stored + directory was consultable (directoryHasData) -&gt;
+        /// "[No Data]" (story P-Q, case a: directory checked, no hit)</item>
+        /// <item>no directory match + not stored + directory not consultable -&gt; empty (story P-Q,
+        /// case b/c: directory unavailable, or entry has no lookupable URL)</item>
         /// </list>
         /// The status indicator is a prefix so it always sits at position 0 regardless of the
         /// directory value's length; "[Inactive]" surfaces that a passkey is possible but not yet set up.
         /// The "[Active]" form is used consistently whether or not the domain is in the directory.
+        /// <paramref name="directoryHasData"/> is only consulted in the fully-blank, not-stored case —
+        /// a directory hit or a stored passkey always takes precedence over it. A null
+        /// <paramref name="directoryValue"/> is treated the same as an empty one.
         /// </summary>
-        internal static string ComposeCellValue(string directoryValue, bool hasStoredPasskey)
+        internal static string ComposeCellValue(string directoryValue, bool hasStoredPasskey, bool directoryHasData)
         {
             bool hasDirectoryValue = !string.IsNullOrEmpty(directoryValue);
 
             if (hasDirectoryValue)
                 return (hasStoredPasskey ? "[Active] " : "[Inactive] ") + directoryValue;
 
-            return hasStoredPasskey ? "[Active]" : string.Empty;
+            if (hasStoredPasskey) return "[Active]";
+
+            return directoryHasData ? "[No Data]" : string.Empty;
         }
 
         /// <summary>

@@ -144,21 +144,31 @@ namespace KPPasskeyChecker.SelfCheck
         {
             Section("stored-passkey state (column overlay)");
 
-            // ComposeCellValue truth table -----------------------------------------------------
+            // ComposeCellValue truth table (story P-Q: 3rd bool = directoryHasData, i.e. the
+            // directory was consultable for this entry and simply had no match) --------------------
             // 2: directory match + stored passkey -> "[Active] <value>" (one prefix only).
-            Assert("dir \"Login\" + stored -> \"[Active] Login\"",
-                PasskeyColumnProvider.ComposeCellValue("Login", true) == "[Active] Login");
+            Assert("dir \"Login\" + stored + dataAvailable -> \"[Active] Login\"",
+                PasskeyColumnProvider.ComposeCellValue("Login", true, true) == "[Active] Login");
             // 1: directory match + no stored passkey -> "[Inactive] <value>".
-            Assert("dir \"Login\" + not stored -> \"[Inactive] Login\"",
-                PasskeyColumnProvider.ComposeCellValue("Login", false) == "[Inactive] Login");
-            // 3 + 5: no directory match + stored passkey -> "[Active]" (consistent bracket form).
-            Assert("no dir + stored -> \"[Active]\"",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, true) == "[Active]");
-            // 4 + 5: neither -> empty.
-            Assert("no dir + not stored -> empty",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, false) == string.Empty);
-            Assert("null dir + stored -> \"[Active]\"",
-                PasskeyColumnProvider.ComposeCellValue(null, true) == "[Active]");
+            Assert("dir \"Login\" + not stored + dataAvailable -> \"[Inactive] Login\"",
+                PasskeyColumnProvider.ComposeCellValue("Login", false, true) == "[Inactive] Login");
+            // 3 + 5: no directory match + stored passkey -> "[Active]" (consistent bracket form,
+            // flag irrelevant when stored).
+            Assert("no dir + stored + dataAvailable -> \"[Active]\"",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, true, true) == "[Active]");
+            Assert("no dir + stored + !dataAvailable -> \"[Active]\"",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, true, false) == "[Active]");
+            // New (P-Q case a): directory consulted, no hit, no stored passkey -> "[No Data]".
+            Assert("no dir + not stored + dataAvailable -> \"[No Data]\"",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, false, true) == "[No Data]");
+            // 4 + 5: neither, and directory not consultable (case b/c) -> empty.
+            Assert("no dir + not stored + !dataAvailable -> empty",
+                PasskeyColumnProvider.ComposeCellValue(string.Empty, false, false) == string.Empty);
+            Assert("null dir + not stored + !dataAvailable -> empty",
+                PasskeyColumnProvider.ComposeCellValue(null, false, false) == string.Empty);
+            // null directoryValue treated like empty.
+            Assert("null dir + not stored + dataAvailable -> \"[No Data]\"",
+                PasskeyColumnProvider.ComposeCellValue(null, false, true) == "[No Data]");
 
             // HasStoredPasskey field-name scan -------------------------------------------------
             Assert("no fields -> not stored",

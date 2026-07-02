@@ -39,17 +39,26 @@ namespace KPPasskeyChecker.Tests.UI
             Assert.False(provider.SupportsCellAction(null));
         }
 
+        // directoryHasData = the directory was consultable for this entry and simply had no match
+        // (story P-Q, case (a)). When hasStoredPasskey is true the flag is irrelevant (stored always
+        // wins -> "[Active]"). When directoryValue is non-empty the flag is likewise irrelevant
+        // (a directory hit always wins). Only the fully-blank + not-stored combination distinguishes
+        // "[No Data]" (case a: directory consulted, no hit) from "" (case b/c: not consultable / no
+        // URL). null directoryValue is treated the same as empty, consistent with existing behaviour.
         [Theory]
-        [InlineData("Login", true, "[Active] Login")]
-        [InlineData("Login", false, "[Inactive] Login")]
-        [InlineData("", true, "[Active]")]
-        [InlineData("", false, "")]
-        [InlineData(null, true, "[Active]")]
-        [InlineData(null, false, "")]
+        [InlineData("Login", true, true, "[Active] Login")]
+        [InlineData("Login", false, true, "[Inactive] Login")]
+        [InlineData("", true, true, "[Active]")]
+        [InlineData("", true, false, "[Active]")]
+        [InlineData("", false, true, "[No Data]")]
+        [InlineData("", false, false, "")]
+        [InlineData(null, false, false, "")]
+        [InlineData(null, false, true, "[No Data]")]
         public void ComposeCellValue_formats_status_prefix(
-            string directoryValue, bool hasStoredPasskey, string expected)
+            string directoryValue, bool hasStoredPasskey, bool directoryHasData, string expected)
         {
-            Assert.Equal(expected, PasskeyColumnProvider.ComposeCellValue(directoryValue, hasStoredPasskey));
+            Assert.Equal(expected,
+                PasskeyColumnProvider.ComposeCellValue(directoryValue, hasStoredPasskey, directoryHasData));
         }
 
         [Fact]
