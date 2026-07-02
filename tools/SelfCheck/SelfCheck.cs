@@ -39,6 +39,7 @@ namespace KPPasskeyChecker.SelfCheck
             CheckDomainCandidatesEtldPlusOne();
             CheckDirectoryTrustAnchorFingerprint();
             CheckPgpPath();
+            CheckSharedTreeNotDiverged();
 
             Console.WriteLine();
             if (_failures == 0)
@@ -240,6 +241,43 @@ namespace KPPasskeyChecker.SelfCheck
             byte[] rdata = SharedChecks.HexToBytes(DirectoryTrustAnchor.CertRecordHex);
             rdata[rdata.Length - 8] ^= 0xFF; // flip a byte well inside the modulus
             return OpenPgpRsaPublicKey.FromCertRecord(rdata);
+        }
+
+        // --- Shared-tree drift guard (Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1) -
+        // Release-blocking gate: compares the REAL two repo trees on disk. KPPasskeyChecker\src\Shared
+        // is canonical; KP2FAChecker\src\Shared must be byte-identical (kept in sync via
+        // sync-shared.ps1). FAILs (non-empty divergence list) when the sibling repo's copy has
+        // drifted. The pure comparison/detection algorithm itself (SharedTreeComparer) is pinned by
+        // a synthetic-fixture xUnit regression test (Architecture\SharedTreeDriftGuardTests.cs); this
+        // check exercises it against the actual on-disk trees, which is why it stays in the SDK-free
+        // SelfCheck harness rather than in the xUnit project (per local_agents.md, SelfCheck is the
+        // mandatory release gate).
+        private static void CheckSharedTreeNotDiverged()
+        {
+            Section("Shared-tree drift guard (KPPasskeyChecker vs KP2FAChecker)");
+
+            string here = AppDomain.CurrentDomain.BaseDirectory;
+            // The harness .exe is staged directly under tools\ (see run-selfcheck.ps1's $OutExe),
+            // so the repo root is one level up.
+            string repoRoot = Path.GetFullPath(Path.Combine(here, @".."));
+            string canonicalShared = Path.Combine(repoRoot, @"src\Shared");
+            string siblingShared = Path.GetFullPath(Path.Combine(repoRoot, @"..\KP2FAChecker\src\Shared"));
+
+            if (!Directory.Exists(siblingShared))
+            {
+                Assert(
+                    "sibling KP2FAChecker\\src\\Shared not found at " + siblingShared
+                        + " (skip — not a Lockstep checkout)",
+                    true);
+                return;
+            }
+
+            IReadOnlyList<string> divergent = SharedTreeComparer.FindDivergentFiles(canonicalShared, siblingShared);
+            Assert(
+                "KPPasskeyChecker\\src\\Shared and KP2FAChecker\\src\\Shared are byte-identical"
+                    + (divergent.Count == 0 ? string.Empty
+                        : " (divergent: " + string.Join(", ", divergent.ToArray()) + ")"),
+                divergent.Count == 0);
         }
 
         // --- helpers ---------------------------------------------------------------------------
