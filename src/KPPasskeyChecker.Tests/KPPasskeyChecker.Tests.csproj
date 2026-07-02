@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Same TFM as the plugin (net48) — SDK/tooling is .NET 10, TFM stays net48 on purpose;
+         see Story P-N planning notes in CLAUDE.local.md. This project is test infrastructure
+         only and is never shipped in the .plgx / .dll (see build.ps1 — untouched by this project). -->
+    <TargetFramework>net48</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- All test packages PrivateAssets="all": this project never flows into a consumer and
+         must never leak into the shipped .plgx/.dll. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit" Version="2.9.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="TngTech.ArchUnitNET" Version="0.13.3">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" Version="0.13.3">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- KeePass.exe must be present at test runtime: loading the plugin assembly (KPPasskeyCheckerExt
+         derives from KeePass.Plugins.Plugin) resolves it. Copy it into the test output (Private=true),
+         unlike the plugin project which sets Private=false. Supplied locally in Libs\ (gitignored). -->
+    <Reference Include="KeePass">
+      <HintPath>..\..\Libs\KeePass.exe</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KPPasskeyChecker\KPPasskeyChecker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Real PGP-signed fixture (byte-identical copy of tools\SelfCheck\fixtures\mfa.json.sig),
+         used by DirectoryTrustAnchorTests to verify the pinned-key path against real signed data
+         without any live network access. Copied into the test-output "fixtures" subfolder so
+         AppContext.BaseDirectory-relative lookups (mirroring SelfCheck.cs) resolve correctly. -->
+    <None Include="fixtures\mfa.json.sig">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SharedTreeComparer is deliberately NOT part of src\Shared or src\KPPasskeyChecker (so it
+         never ships in the .plgx/.dll) and outside the KPPasskeyChecker.*/KeeRadar.Shared.*
+         namespaces (so the needs-tests guard does not require a production-class test pairing for
+         it). It is compiled here as a link so the same file also compiles unchanged under
+         tools\run-selfcheck.ps1 (csc /langversion:5) — one algorithm, two call sites. See
+         Architecture\SharedTreeDriftGuardTests.cs and tools\SelfCheck\SharedTreeComparer.cs. -->
+    <Compile Include="..\..\tools\SelfCheck\SharedTreeComparer.cs" Link="Architecture\SharedTreeComparer.cs" />
+  </ItemGroup>
+
+</Project>
