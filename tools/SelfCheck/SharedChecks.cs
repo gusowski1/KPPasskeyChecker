@@ -43,10 +43,9 @@ namespace KPPasskeyChecker.SelfCheck
         }
 
         // --- DirectoryTrustAnchor fingerprint assertion -----------------------------------------
-        // TDD (ROT): verifies that the canonical shared class KeeRadar.Shared.Pgp.DirectoryTrustAnchor
+        // Verifies that the canonical shared class KeeRadar.Shared.Pgp.DirectoryTrustAnchor
         // loads the pinned 2factorauth code-signing key and that its computed v4 fingerprint matches
-        // the expected value. This test will fail (compile error: type not found) until the coder
-        // creates KPPasskeyChecker/src/Shared/Pgp/DirectoryTrustAnchor.cs.
+        // the expected value.
         public static void CheckDirectoryTrustAnchorFingerprint(
             Action<string> section,
             Action<string, bool> assert)

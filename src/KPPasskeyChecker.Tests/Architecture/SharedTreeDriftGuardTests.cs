@@ -6,7 +6,7 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Architecture
 {
     /// <summary>
-    /// TDD (ROT) — Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1 ("Shared-Drift-Guard").
+    /// Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1 ("Shared-Drift-Guard").
     ///
     /// Defines the target behaviour for a byte-/hash-comparison guard between the two copies of
     /// <c>src\Shared</c> (canonical in KPPasskeyChecker, mirrored verbatim into KP2FAChecker via
@@ -27,9 +27,6 @@ namespace KPPasskeyChecker.Tests.Architecture
     /// <c>System.Security.Cryptography</c>) so it compiles unchanged under csc /langversion:5
     /// AND is unit-testable here — one algorithm, two call sites (SelfCheck for the release gate,
     /// this test for the regression pin on the comparison behaviour itself).
-    ///
-    /// <c>SharedTreeComparer</c> does not exist yet — this test fails to compile until the coder
-    /// introduces it (GREEN step). ROT is the intended state right now.
     /// </summary>
     public class SharedTreeDriftGuardTests
     {

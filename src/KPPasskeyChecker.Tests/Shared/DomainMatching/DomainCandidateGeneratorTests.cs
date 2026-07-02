@@ -5,12 +5,11 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Shared.DomainMatching
 {
     /// <summary>
-    /// TDD (ROT) — Architecture-Assessment 2026-07-02, Achse 7 / Rangliste #3 ("PSL-HttpClient auf
+    /// Architecture-Assessment 2026-07-02, Achse 7 / Rangliste #3 ("PSL-HttpClient auf
     /// statischen Singleton umstellen"). <see cref="DomainCandidateGenerator"/> is touched by that
     /// hardening (its <c>LoadPslAsync</c> creates a per-refresh <c>HttpClient</c>), so per the
-    /// "touch it -&gt; test it" ratchet it must graduate out of
-    /// <c>TestCoverageExemptions.Grandfathered</c> (coder's GREEN-step responsibility) and get real
-    /// tests here — this file is that test class.
+    /// "touch it -&gt; test it" ratchet it graduated out of
+    /// <c>TestCoverageExemptions.Grandfathered</c> and got real tests — this file is that test class.
     ///
     /// Scope is the pure, network-free eTLD+1 / candidate-generation logic
     /// (<see cref="DomainCandidateGenerator.GetCandidates"/>, portable from

@@ -8,8 +8,6 @@ using KeePassLib.Security;
 using KPPasskeyChecker.Data;
 using KeeRadar.Shared.Pgp;
 using KPPasskeyChecker.UI;
-// TDD (ROT): DirectoryTrustAnchor does not yet exist; this using will cause a compile error
-// until the coder creates KPPasskeyChecker/src/Shared/Pgp/DirectoryTrustAnchor.cs.
 
 namespace KPPasskeyChecker.SelfCheck
 {
@@ -205,9 +203,7 @@ namespace KPPasskeyChecker.SelfCheck
         }
 
         // --- DirectoryTrustAnchor fingerprint assertion (shared) --------------------------------
-        // TDD (ROT): delegates to SharedChecks which references the canonical
-        // KeeRadar.Shared.Pgp.DirectoryTrustAnchor. This causes a compile error until the coder
-        // creates KPPasskeyChecker/src/Shared/Pgp/DirectoryTrustAnchor.cs.
+        // Delegates to SharedChecks which references the canonical KeeRadar.Shared.Pgp.DirectoryTrustAnchor.
         private static void CheckDirectoryTrustAnchorFingerprint()
         {
             SharedChecks.CheckDirectoryTrustAnchorFingerprint(Section, Assert);
@@ -219,8 +215,6 @@ namespace KPPasskeyChecker.SelfCheck
         // using the canonical pinned DirectoryTrustAnchor key (not the plugin-local PasskeyTrustAnchor).
         // No network access: the fixture is read from disk next to the harness .exe.
         // A second pass uses a deliberately corrupted key to prove that a wrong key fails closed.
-        //
-        // TDD (ROT): DirectoryTrustAnchor.CreateVerifier() does not yet exist; compile error expected.
         private static void CheckPgpPath()
         {
             Section("PGP signature path");
@@ -245,7 +239,6 @@ namespace KPPasskeyChecker.SelfCheck
 
         // Builds an RSA public key from the pinned CERT RDATA with a single modulus byte flipped,
         // so it parses cleanly but can never match the real signature (fail-closed wrong-key case).
-        // TDD (ROT): DirectoryTrustAnchor.CertRecordHex does not yet exist; compile error expected.
         private static OpenPgpRsaPublicKey CorruptedKey()
         {
             byte[] rdata = SharedChecks.HexToBytes(DirectoryTrustAnchor.CertRecordHex);

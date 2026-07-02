@@ -10,11 +10,9 @@ namespace KPPasskeyChecker.Tests.Shared.Pgp
     /// Tests for the pinned 2fa.directory code-signing key (new in v0.5.0 — replaces the former
     /// per-plugin *TrustAnchor). The fingerprint pin is the fail-closed security invariant.
     ///
-    /// TDD (ROT, per QA-Gate step 1): the verify-path tests below reference
-    /// "fixtures\mfa.json.sig" relative to the test-output directory (AppContext.BaseDirectory),
-    /// ported 1:1 from tools\SelfCheck\SelfCheck.cs (CheckPgpPath). The fixture file itself, plus
-    /// the csproj CopyToOutputDirectory wiring, are added by the coder in the GREEN step — until
-    /// then File.ReadAllBytes throws FileNotFoundException and these two tests are RED by design.
+    /// The verify-path tests below reference "fixtures\mfa.json.sig" relative to the test-output
+    /// directory (AppContext.BaseDirectory), ported 1:1 from tools\SelfCheck\SelfCheck.cs
+    /// (CheckPgpPath). The fixture file is wired via the csproj CopyToOutputDirectory setting.
     /// </summary>
     public class DirectoryTrustAnchorTests
     {

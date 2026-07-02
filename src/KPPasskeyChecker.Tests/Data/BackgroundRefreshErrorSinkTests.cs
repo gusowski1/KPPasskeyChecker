@@ -6,7 +6,7 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Data
 {
     /// <summary>
-    /// TDD (ROT) — Architecture-Assessment 2026-07-02, Achse 4 / Rangliste #2 ("Fehler-Senke
+    /// Architecture-Assessment 2026-07-02, Achse 4 / Rangliste #2 ("Fehler-Senke
     /// fuer fire-and-forget-Tasks"). <see cref="PasskeyDirectoryService.Start"/> and
     /// <see cref="PasskeyDirectoryService.ScheduleTimer"/> currently kick off
     /// <c>Task.Run(() =&gt; RefreshAsync(false))</c> without observing the task's outcome. If an
@@ -26,9 +26,8 @@ namespace KPPasskeyChecker.Tests.Data
     /// task-runner ("error sink") that wraps a fire-and-forget <see cref="Func{Task}"/> and writes
     /// any escaping exception into an observable slot instead of leaving it unobserved.
     ///
-    /// This type (<c>BackgroundRefreshErrorSink</c>) does not exist yet — the test fails to
-    /// compile until the coder introduces it and wires <c>PasskeyDirectoryService.Start</c> /
-    /// <c>ScheduleTimer</c> through it (GREEN step). ROT is the intended state right now.
+    /// This type (<c>BackgroundRefreshErrorSink</c>) is wired through <c>PasskeyDirectoryService.Start</c>
+    /// / <c>ScheduleTimer</c>.
     /// </summary>
     public class BackgroundRefreshErrorSinkTests
     {
