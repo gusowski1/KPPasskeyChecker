@@ -11,8 +11,7 @@ namespace KPPasskeyChecker.Tests.Architecture
     /// &lt;Class&gt;Tests class" guard (see <see cref="ArchitectureGuidelinesTests"/>).
     ///
     /// <see cref="Entries"/> only carries exemptions that cannot be expressed as a structural
-    /// rule and therefore require a named type + a reason — see the Ausnahme-Mapping table in the
-    /// P-N story (CLAUDE.local.md) for "PluginIcon", "EntryDetailForm", "EntryDetailRow".
+    /// rule and therefore require a named type + a reason.
     ///
     /// Structural exemptions (compiler-generated, IsExternalInit, PluginVersion, AssemblyInfo,
     /// *Ext suffix, enums, delegates, WinForms Forms/UserControls) are convention rules evaluated
@@ -29,68 +28,61 @@ namespace KPPasskeyChecker.Tests.Architecture
                 (
                     "KPPasskeyChecker.UI.PluginIcon",
                     "Static embedded-resource icon accessor without business logic; returns a " +
-                    "bundled Image/Icon only (see P-N Ausnahme-Mapping)."
+                    "bundled Image/Icon only."
                 ),
                 (
                     "KeeRadar.Shared.KeePassUi.EntryDetailForm",
                     "WinForms UI composition (visual/event-driven); not meaningfully testable in " +
-                    "isolation without a UI harness (see P-N Ausnahme-Mapping)."
+                    "isolation without a UI harness."
                 ),
                 (
                     "KeeRadar.Shared.KeePassUi.EntryDetailRow",
-                    "WinForms-adjacent row/view base type without isolable business logic " +
-                    "(see P-N Ausnahme-Mapping)."
+                    "WinForms-adjacent row/view base type without isolable business logic."
+                ),
+                (
+                    "KPPasskeyChecker.Data.PasskeyApiClient",
+                    "HTTP transport over the shared static HttpClient; unit-testing would require " +
+                    "an HTTP-mocking production seam, which the codebase avoids by design. " +
+                    "Security-critical behaviour (PGP fail-closed verification and the 16 MB " +
+                    "decompression-bomb guard) is covered end-to-end by the committed .sig " +
+                    "fixture in the SelfCheck harness."
+                ),
+                (
+                    "KeeRadar.Shared.Http.ConditionalHttpFetcher",
+                    "Conditional HTTP fetch (If-None-Match/ETag) over the shared static " +
+                    "HttpClient; same rationale as the API client — mocking would force a " +
+                    "production seam, and the security-critical path is covered end-to-end by " +
+                    "the committed .sig fixture."
+                ),
+                (
+                    "KPPasskeyChecker.Data.PasskeyDirectoryService",
+                    "Fetch-and-cache lifecycle orchestrator; hard-wires the HTTP API client and " +
+                    "the file-system cache in a private constructor with no injection seam, and " +
+                    "initialisation starts a live background fetch and timer. Unit-testing its " +
+                    "refresh/lifecycle would require a production dependency-injection seam and " +
+                    "pull in the exempted HTTP transport; its own logic is thin property-mapping, " +
+                    "and the fetch/verify path is covered by the committed .sig fixture."
                 ),
             };
 
         /// <summary>
         /// Grandfathered baseline: production classes that already existed before v0.5.0 and have
         /// no unit tests yet. They are accepted as TECHNICAL DEBT — the needs-tests guard does not
-        /// require tests for them (yet). Full coverage is a backlog item (Story P-O, to be
-        /// estimated via /po and then implemented via /ship).
+        /// require tests for them (yet).
         ///
         /// This baseline is a RATCHET: it may only shrink. Per the "touch it -&gt; test it" rule,
         /// when one of these files is next modified, add its &lt;Class&gt;Tests and REMOVE the
         /// entry here — <see cref="TestCoverageExemptionsTests"/> fails if a grandfathered class
         /// already has a test (graduated) or no longer exists (stale).
         ///
-        /// Architecture-hardening TDD step 2 (GREEN, 2026-07-02): DomainCandidateGenerator and
-        /// PublicSuffixList graduated out of this baseline — both are touched by the Rangliste-#3
-        /// PSL-HttpClient fix (static HttpClient singleton) and now have real tests
-        /// (Shared\DomainMatching\DomainCandidateGeneratorTests.cs / PublicSuffixListTests.cs), per
-        /// the "touch it -&gt; test it" ratchet. PasskeyDirectoryService stays grandfathered on
-        /// purpose: only the new BackgroundRefreshErrorSink (a separate, directly-tested type) is
-        /// covered by the Rangliste-#2 fix — the service's own lifecycle (Start/Initialize/timer)
-        /// remains untested technical debt, no graduation claimed for it here.
+        /// Currently empty: the full test-coverage backlog is complete — DomainCandidateGenerator
+        /// and PublicSuffixList graduated to real tests (Shared\DomainMatching\
+        /// DomainCandidateGeneratorTests.cs / PublicSuffixListTests.cs), and the remaining HTTP
+        /// transport / lifecycle-orchestrator classes moved to the documented, reasoned
+        /// exemptions in <see cref="Entries"/> above rather than staying silently grandfathered.
         /// </summary>
         public static readonly IReadOnlyList<string> Grandfathered = new List<string>
         {
-            // KPPasskeyChecker.* (pre-0.5.0)
-            "KPPasskeyChecker.Data.ContactInfo",
-            "KPPasskeyChecker.Data.PasskeyApiClient",
-            "KPPasskeyChecker.Data.PasskeyDataResult",
-            "KPPasskeyChecker.Data.PasskeyDirectory",
-            "KPPasskeyChecker.Data.PasskeyDirectoryService",
-            "KPPasskeyChecker.Data.PasskeyEndpoints",
-            "KPPasskeyChecker.Data.PasskeyEntry",
-            "KPPasskeyChecker.Data.PasskeyEntryMapper",
-            "KPPasskeyChecker.Settings.PasskeySettingsStore",
-            "KPPasskeyChecker.UI.PasskeyDetailModelBuilder",
-            // KeeRadar.Shared.* (pre-0.5.0)
-            "KeeRadar.Shared.Caching.CacheEntry",
-            "KeeRadar.Shared.Caching.FileSystemJsonCache",
-            "KeeRadar.Shared.Http.ConditionalHttpFetcher",
-            "KeeRadar.Shared.Http.FetchResult",
-            "KeeRadar.Shared.Http.UserAgent",
-            "KeeRadar.Shared.KeePassUi.EntryDetailModel",
-            "KeeRadar.Shared.KeePassUi.LinkDetailRow",
-            "KeeRadar.Shared.KeePassUi.NotesDetailRow",
-            "KeeRadar.Shared.KeePassUi.PluginSettingsStoreBase",
-            "KeeRadar.Shared.KeePassUi.TextDetailRow",
-            "KeeRadar.Shared.Pgp.OpenPgpRsaPublicKey",
-            "KeeRadar.Shared.Pgp.OpenPgpSignatureVerifier",
-            "KeeRadar.Shared.Pgp.PgpPacketReader",
-            "KeeRadar.Shared.Pgp.PgpVerificationResult",
         };
 
         /// <summary>True if <paramref name="t"/> is a grandfathered pre-0.5.0 technical-debt class.</summary>
