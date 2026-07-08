@@ -3,7 +3,7 @@ using System.Windows.Forms;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Story P-S, Guard 3a: Interface-Namen muessen mit "I" beginnen).
+    /// RED-NACHWEIS-FIXTURE (Guard 3a: Interface-Namen muessen mit "I" beginnen).
     ///
     /// Nur im Testprojekt; nie geshippt. Verwendet fuer
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard3a_interface_naming_test_catches_missing_I_prefix"/>.
@@ -19,7 +19,7 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
     }
 
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Story P-S, Guard 3b: echte <see cref="Form"/>-Ableitungen muessen auf
+    /// RED-NACHWEIS-FIXTURE (Guard 3b: echte <see cref="Form"/>-Ableitungen muessen auf
     /// "Form" enden).
     ///
     /// Nur im Testprojekt; nie geshippt. Verwendet fuer

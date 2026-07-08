@@ -45,11 +45,11 @@ namespace KPPasskeyChecker.UI
         }
 
         // Directory-only column value (or empty) for the entry, factoring out availability/URL/lookup
-        // gating from the stored-passkey overlay applied in ComposeCellValue. directoryHasData (story
-        // P-Q) is true only when the directory was actually consultable for this entry (service
-        // available, directory loaded, entry has a lookupable host) and simply had no match — it is
-        // false when the directory isn't loaded yet/errored, or the entry has no URL, so the caller
-        // can distinguish "checked, nothing found" ([No Data]) from "couldn't check" (blank).
+        // gating from the stored-passkey overlay applied in ComposeCellValue. directoryHasData is
+        // true only when the directory was actually consultable for this entry (service available,
+        // directory loaded, entry has a lookupable host) and simply had no match — it is false when
+        // the directory isn't loaded yet/errored, or the entry has no URL, so the caller can
+        // distinguish "checked, nothing found" ([No Data]) from "couldn't check" (blank).
         private static string LookupDirectoryValue(PwEntry pe, out bool directoryHasData)
         {
             directoryHasData = false;
@@ -76,9 +76,9 @@ namespace KPPasskeyChecker.UI
         /// <item>directory match + no stored passkey -&gt; "[Inactive] &lt;value&gt;"</item>
         /// <item>no directory match + stored passkey -&gt; "[Active]"</item>
         /// <item>no directory match + not stored + directory was consultable (directoryHasData) -&gt;
-        /// "[No Data]" (story P-Q, case a: directory checked, no hit)</item>
-        /// <item>no directory match + not stored + directory not consultable -&gt; empty (story P-Q,
-        /// case b/c: directory unavailable, or entry has no lookupable URL)</item>
+        /// "[No Data]" (case a: directory checked, no hit)</item>
+        /// <item>no directory match + not stored + directory not consultable -&gt; empty (case b/c:
+        /// directory unavailable, or entry has no lookupable URL)</item>
         /// </list>
         /// The status indicator is a prefix so it always sits at position 0 regardless of the
         /// directory value's length; "[Inactive]" surfaces that a passkey is possible but not yet set up.

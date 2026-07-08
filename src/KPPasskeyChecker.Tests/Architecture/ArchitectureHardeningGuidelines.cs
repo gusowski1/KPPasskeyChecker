@@ -14,15 +14,15 @@ using static ArchUnitNET.Fluent.ArchRuleDefinition;
 namespace KPPasskeyChecker.Tests.Architecture
 {
     /// <summary>
-    /// Production-side guard/helper class for Story P-S ("Haertung der ArchUnit-Guards"), GREEN
-    /// step. Implements the three additive guards specified in
+    /// Production-side guard/helper class implementing additive architecture-hardening guards.
+    /// Implements the guards specified in
     /// <see cref="ArchitectureHardeningGuidelinesTests"/> (whose XML doc header is the binding
     /// contract for this class's static surface — see that file's remarks for the full rationale,
     /// including why two <see cref="ArchUnitNET.Domain.Architecture"/> instances are needed).
     ///
     /// This is purely additive test-project infrastructure: it is NOT shipped in the .plgx/.dll
     /// (build.ps1 only packages src\KPPasskeyChecker\ + src\Shared\) and does not modify the
-    /// pre-existing P-N guard in ArchitectureGuidelines.cs.
+    /// pre-existing guard in ArchitectureGuidelines.cs.
     /// </summary>
     public static class ArchitectureHardeningGuidelines
     {
@@ -151,7 +151,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
         // GetTypes() can throw if a KeePass-derived type fails to load; fall back to the types
         // that did load so the guards still run (and never silently swallow a real gap). Mirrors
-        // the same defensive pattern already used by ArchitectureGuidelines.cs (P-N guard).
+        // the same defensive pattern already used by ArchitectureGuidelines.cs.
         private static IEnumerable<Type> GetTypes(Assembly assembly)
         {
             try

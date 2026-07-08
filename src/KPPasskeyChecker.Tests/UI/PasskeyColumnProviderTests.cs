@@ -10,9 +10,9 @@ namespace KPPasskeyChecker.Tests.UI
     /// Tests for the entry-list cell formatting (logic changed in v0.5.0 — the "[Active]" bracket
     /// form is now used consistently whether or not the domain is in the directory).
     ///
-    /// Full public-(logic-)surface coverage per the P-O DoD addendum (CLAUDE.local.md,
-    /// "Definition of Done — Zusatz", 2026-07-02): ComposeCellValue, FormatEntry,
-    /// HasStoredPasskey and SupportsCellAction are the logic-bearing members of
+    /// Full public-(logic-)surface coverage per the project's test-coverage Definition of Done:
+    /// ComposeCellValue, FormatEntry, HasStoredPasskey and SupportsCellAction are the logic-bearing
+    /// members of
     /// PasskeyColumnProvider; all are covered here. ComposeCellValue/FormatEntry/HasStoredPasskey
     /// are ported 1:1 from tools\SelfCheck\SelfCheck.cs (CheckFormatEntry / CheckStoredPasskeyState).
     /// </summary>
@@ -40,11 +40,11 @@ namespace KPPasskeyChecker.Tests.UI
         }
 
         // directoryHasData = the directory was consultable for this entry and simply had no match
-        // (story P-Q, case (a)). When hasStoredPasskey is true the flag is irrelevant (stored always
-        // wins -> "[Active]"). When directoryValue is non-empty the flag is likewise irrelevant
-        // (a directory hit always wins). Only the fully-blank + not-stored combination distinguishes
-        // "[No Data]" (case a: directory consulted, no hit) from "" (case b/c: not consultable / no
-        // URL). null directoryValue is treated the same as empty, consistent with existing behaviour.
+        // (case (a)). When hasStoredPasskey is true the flag is irrelevant (stored always wins ->
+        // "[Active]"). When directoryValue is non-empty the flag is likewise irrelevant (a directory
+        // hit always wins). Only the fully-blank + not-stored combination distinguishes "[No Data]"
+        // (case a: directory consulted, no hit) from "" (case b/c: not consultable / no URL). null
+        // directoryValue is treated the same as empty, consistent with existing behaviour.
         [Theory]
         [InlineData("Login", true, true, "[Active] Login")]
         [InlineData("Login", false, true, "[Inactive] Login")]

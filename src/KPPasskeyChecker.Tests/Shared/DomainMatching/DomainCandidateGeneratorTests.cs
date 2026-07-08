@@ -5,19 +5,17 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Shared.DomainMatching
 {
     /// <summary>
-    /// Architecture-Assessment 2026-07-02, Achse 7 / Rangliste #3 ("PSL-HttpClient auf
-    /// statischen Singleton umstellen"). <see cref="DomainCandidateGenerator"/> is touched by that
-    /// hardening (its <c>LoadPslAsync</c> creates a per-refresh <c>HttpClient</c>), so per the
-    /// "touch it -&gt; test it" ratchet it graduated out of
-    /// <c>TestCoverageExemptions.Grandfathered</c> and got real tests — this file is that test class.
+    /// <see cref="DomainCandidateGenerator"/> is touched by the PSL-HttpClient hardening (its
+    /// <c>LoadPslAsync</c> creates a per-refresh <c>HttpClient</c>), so per the "touch it -&gt; test
+    /// it" ratchet it graduated out of <c>TestCoverageExemptions.Grandfathered</c> and got real
+    /// tests — this file is that test class.
     ///
     /// Scope is the pure, network-free eTLD+1 / candidate-generation logic
     /// (<see cref="DomainCandidateGenerator.GetCandidates"/>, portable from
     /// <c>tools\SelfCheck\SharedChecks.CheckDomainCandidatesEtldPlusOne</c>, extended with edge/
     /// negative cases). The HTTP PSL download path (<c>LoadPslAsync</c> / <c>InitializeAsync</c>)
-    /// stays excluded from unit testing per Lars' Option-b decision (P-O/F-O, 2026-07-01,
-    /// mirrored for Achse 5 in the architecture assessment): no HttpClient mocking, no forced
-    /// production seam beyond what the PSL-HttpClient fix itself introduces.
+    /// stays excluded from unit testing per a deliberate decision: no HttpClient mocking, no
+    /// forced production seam beyond what the PSL-HttpClient fix itself introduces.
     ///
     /// GetCandidates never touches the network directly and does not require
     /// DomainCandidateGenerator.InitializeAsync to have run — the static _psl field is null by

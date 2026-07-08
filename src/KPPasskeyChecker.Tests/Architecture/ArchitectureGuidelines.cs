@@ -14,14 +14,13 @@ using static ArchUnitNET.Fluent.ArchRuleDefinition;
 namespace KPPasskeyChecker.Tests.Architecture
 {
     /// <summary>
-    /// Architecture conformance guard for KPPasskeyChecker (Story P-N).
+    /// Architecture conformance guard for KPPasskeyChecker.
     ///
     /// Two rules:
     ///   1. Needs-Tests-Guard: every production, non-exempt class in KPPasskeyChecker.* and
     ///      KeeRadar.Shared.* must have a corresponding &lt;Class&gt;Tests class in this test
-    ///      assembly (which owns both the plugin's own tests and the Shared tests — P-N decision 3).
-    ///   2. Layering hardening: KeeRadar.Shared.* must never depend on KPPasskeyChecker.* (P-N
-    ///      decision 4 / Scenario 10).
+    ///      assembly (which owns both the plugin's own tests and the Shared tests).
+    ///   2. Layering hardening: KeeRadar.Shared.* must never depend on KPPasskeyChecker.*.
     /// </summary>
     public class ArchitectureGuidelinesTests
     {
@@ -36,7 +35,7 @@ namespace KPPasskeyChecker.Tests.Architecture
             new ArchLoader().LoadAssemblies(ProductionAssembly).Build();
 
         /// <summary>
-        /// Scenario 3/4/5: every production, non-exempt class in KPPasskeyChecker.* or
+        /// Every production, non-exempt class in KPPasskeyChecker.* or
         /// KeeRadar.Shared.* must have a corresponding &lt;Class&gt;Tests class in this test
         /// assembly. Uses reflection (full System.Type surface) rather than the ArchUnit domain
         /// model so that exemptions can reason about base types (WinForms), enums, delegates, etc.
@@ -51,7 +50,7 @@ namespace KPPasskeyChecker.Tests.Architecture
                 .Where(t => t.IsClass && !t.IsNested)
                 .Where(IsInScope)
                 .Where(t => !TestCoverageExemptions.IsExempt(t))
-                .Where(t => !TestCoverageExemptions.IsGrandfathered(t)) // pre-0.5.0 debt (backlog P-O)
+                .Where(t => !TestCoverageExemptions.IsGrandfathered(t)) // pre-0.5.0 debt (tracked as technical debt)
                 .Where(t => !testTypeNames.Contains(t.Name + "Tests"))
                 .Select(t => t.FullName)
                 .OrderBy(n => n, StringComparer.Ordinal)
@@ -64,8 +63,8 @@ namespace KPPasskeyChecker.Tests.Architecture
         }
 
         /// <summary>
-        /// Scenario 10: KeeRadar.Shared.* must never depend on KPPasskeyChecker.* — layering
-        /// hardening enforced at test time.
+        /// KeeRadar.Shared.* must never depend on KPPasskeyChecker.* — layering hardening
+        /// enforced at test time.
         /// </summary>
         [Fact]
         public void Shared_must_not_depend_on_plugin_code()

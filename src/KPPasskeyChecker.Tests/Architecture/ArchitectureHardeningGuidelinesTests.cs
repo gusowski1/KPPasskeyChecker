@@ -13,14 +13,10 @@ using static ArchUnitNET.Fluent.ArchRuleDefinition;
 namespace KPPasskeyChecker.Tests.Architecture
 {
     /// <summary>
-    /// TDD (ROT — QA-Gate step 1, Story P-S, "Haertung der ArchUnit-Guards"). These tests define
-    /// the three additive guards from P-S (docs\archunit-rules-assessment_2026-07-03.md Section 4
-    /// / CLAUDE.local.md Story P-S) BEFORE the coder implements the guard/helper logic. They are
-    /// currently RED by construction:
-    ///
-    ///   - <see cref="ArchitectureHardeningGuidelines"/> (the production-side guard helper class
-    ///     this file expects) does not exist yet -&gt; this file fails to COMPILE until the coder
-    ///     introduces it. That is the intended state right now.
+    /// These tests define four additive architecture-hardening guards (layering, non-handler
+    /// async void, naming conventions, UI/PGP isolation) together with
+    /// <see cref="ArchitectureHardeningGuidelines"/> (the production-side guard helper class this
+    /// file consumes).
     ///
     /// API note (verified against the REAL installed TngTech.ArchUnitNET 0.13.3 /
     /// TngTech.ArchUnitNET.xUnit 0.13.3 assemblies via a throwaway reflection probe, not against
@@ -68,16 +64,13 @@ namespace KPPasskeyChecker.Tests.Architecture
     /// (b) includes the fixture offenders (asserted via `Assert.Contains`) at the same time. No
     /// second assembly-set is needed for these two guards.
     ///
-    /// What the coder must build (GREEN step) — see also the XML doc on each fixture in
+    /// Guard/helper surface — see also the XML doc on each fixture in
     /// Architecture\Fixtures\*.cs for the exact expectations:
     ///
     /// 1. A production-side helper class `ArchitectureHardeningGuidelines` (this test file's
-    ///    `using` surface expects it to expose the below static members; the coder may organize
-    ///    the actual implementation differently AS LONG AS the signatures below keep compiling —
-    ///    but see the "expected minimal surface" list). Suggested location: a new file
-    ///    `Architecture\ArchitectureHardeningGuidelines.cs` alongside the existing
-    ///    `ArchitectureGuidelines.cs` (NOT editing that pre-existing file — keep the P-N guard
-    ///    untouched, additive only, per Immutable-Core).
+    ///    `using` surface expects it to expose the below static members). Location: a dedicated
+    ///    file `Architecture\ArchitectureHardeningGuidelines.cs` alongside the pre-existing
+    ///    `ArchitectureGuidelines.cs` (kept untouched, additive only, per Immutable-Core).
     ///
     /// 2. Guard 1 (Layering Data.* &#8869; UI) — ArchUnitNET-Fluent:
     ///    <code>
@@ -137,14 +130,12 @@ namespace KPPasskeyChecker.Tests.Architecture
     ///    Must keep `PasskeySettingsForm` and `KeeRadar.Shared.KeePassUi.EntryDetailForm` green.
     ///    Must catch `Fixtures.RogueDialogWithoutFormSuffix`.
     ///    Must NOT flag `PasskeyColumnProvider` / `PluginIcon` / `PasskeyDetailModelBuilder`
-    ///    (none derive from Form — this is the whole point of the basistyp-based rule per RF1(a)
-    ///    in the assessment, NOT a "*.UI.* ends with Form" rule).
+    ///    (none derive from Form — this is the whole point of the base-type-based rule, NOT a
+    ///    "*.UI.* ends with Form" rule).
     ///
-    /// Expected minimal static surface on the coder's `ArchitectureHardeningGuidelines` helper
-    /// (this is a SUGGESTION to keep this test file stable across the ROT-&gt;GREEN transition —
-    /// the coder is free to name things differently as long as this test file's `using`s below
-    /// keep resolving; if renamed, this test file must be updated in lockstep by whoever does the
-    /// GREEN step, per the "touch it -&gt; test it" ratchet):
+    /// Minimal static surface on `ArchitectureHardeningGuidelines` that this test file's `using`s
+    /// rely on (if renamed, this test file must be updated in lockstep, per the "touch it -&gt;
+    /// test it" ratchet):
     ///   - `ArchUnitNET.Domain.Architecture ArchitectureHardeningGuidelines.ProductionOnlyArchitecture`
     ///     (production assembly ONLY, built once, static readonly)
     ///   - `ArchUnitNET.Domain.Architecture ArchitectureHardeningGuidelines.ProductionAndTestArchitecture`
@@ -167,10 +158,9 @@ namespace KPPasskeyChecker.Tests.Architecture
 
         /// <summary>
         /// Szenario 1: green today. Real production KPPasskeyChecker.Data.* has no
-        /// System.Windows.Forms using and no .UI.* reference (verified by Grep in the assessment,
-        /// docs\archunit-rules-assessment_2026-07-03.md Fact 0.3) — so the rule must run clean
-        /// against the PRODUCTION-ONLY architecture (fixtures excluded by construction, see class
-        /// remarks on the two-Architecture split).
+        /// System.Windows.Forms using and no .UI.* reference (verified by Grep) — so the rule must
+        /// run clean against the PRODUCTION-ONLY architecture (fixtures excluded by construction,
+        /// see class remarks on the two-Architecture split).
         /// </summary>
         [Fact]
         public void Guard1_layering_rule_is_green_against_real_production_code()
@@ -324,8 +314,7 @@ namespace KPPasskeyChecker.Tests.Architecture
         /// <summary>
         /// Szenario 9: non-Form .UI.* classes (PasskeyColumnProvider / PluginIcon /
         /// PasskeyDetailModelBuilder) must NEVER be flagged by the Form-suffix guard — it checks
-        /// the base type (System.Windows.Forms.Form), not the namespace. This directly encodes
-        /// the RF1(a) verdict in docs\archunit-rules-assessment_2026-07-03.md: a namespace-based
+        /// the base type (System.Windows.Forms.Form), not the namespace. A namespace-based
         /// "*.UI.* ends with Form" rule was explicitly rejected because it breaks these three
         /// legitimately-named, non-Form classes.
         /// </summary>
@@ -354,23 +343,17 @@ namespace KPPasskeyChecker.Tests.Architecture
         // ---- Guard 4 (N1): UI must not depend on raw PGP internals ----------------------------
 
         /// <summary>
-        /// TDD (ROT — QA-Gate step 1, fourth hardening guard N1, additive to Story P-S,
-        /// docs\archunit-rules-assessment_2026-07-03.md Section 5.2). This test references the
-        /// NOT-YET-EXISTING <c>ArchitectureHardeningGuidelines.UiMustNotDependOnRawPgpRule</c>
-        /// member -&gt; this file fails to COMPILE (CS0103) until the coder introduces it. That is
-        /// the intended state right now.
+        /// Fourth hardening guard: <c>ArchitectureHardeningGuidelines.UiMustNotDependOnRawPgpRule</c>.
         ///
         /// Green-today assertion: real production code has NO UI type (neither
         /// KeeRadar.Shared.KeePassUi.* nor KPPasskeyChecker.UI.*) depending on any type in
-        /// KeeRadar.Shared.Pgp except the result DTO PgpVerificationResult (verified in the
-        /// assessment: the only real PGP consumer is KPPasskeyChecker.Data.PasskeyApiClient). Must
-        /// therefore run clean against ProductionOnlyArchitecture (fixtures excluded by
-        /// construction, see class remarks on the two-Architecture split used already by Guard 1
-        /// and Guard 3a).
+        /// KeeRadar.Shared.Pgp except the result DTO PgpVerificationResult (the only real PGP
+        /// consumer is KPPasskeyChecker.Data.PasskeyApiClient). Must therefore run clean against
+        /// ProductionOnlyArchitecture (fixtures excluded by construction, see class remarks on the
+        /// two-Architecture split used already by Guard 1 and Guard 3a).
         ///
-        /// Expected rule shape for the coder's GREEN step (ArchUnitNET-Fluent,
-        /// <c>DoNotHaveName</c> verified present in the installed 0.13.3 assembly per the
-        /// assessment's 5.0 API table):
+        /// Rule shape (ArchUnitNET-Fluent, <c>DoNotHaveName</c> verified present in the installed
+        /// 0.13.3 assembly):
         /// <code>
         /// IArchRule UiMustNotDependOnRawPgpRule =
         ///     Types().That()
@@ -381,10 +364,10 @@ namespace KPPasskeyChecker.Tests.Architecture
         ///                 .And().DoNotHaveName("PgpVerificationResult"))
         ///         .Because("UI consumes only the PgpVerificationResult DTO, never the crypto internals.");
         /// </code>
-        /// Both UI layers are in scope simultaneously (Shared-KeePassUi AND plugin-.UI) — this is
-        /// the N1 fix the assessment calls for (the original proposal's
-        /// <c>.*\.KeePassUi.*</c>-only pattern missed the plugin-.UI layer where a leak would more
-        /// plausibly occur). <c>PgpVerificationResult</c> (the result DTO) is the sole exemption.
+        /// Both UI layers are in scope simultaneously (Shared-KeePassUi AND plugin-.UI) — a
+        /// <c>.*\.KeePassUi.*</c>-only pattern would miss the plugin-.UI layer where a leak would
+        /// more plausibly occur. <c>PgpVerificationResult</c> (the result DTO) is the sole
+        /// exemption.
         /// </summary>
         [Fact]
         public void Guard4_ui_pgp_isolation_rule_is_green_against_real_production_code()

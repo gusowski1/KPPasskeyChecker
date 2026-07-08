@@ -134,7 +134,7 @@ namespace KPPasskeyChecker.SelfCheck
                 PasskeyColumnProvider.FormatEntry(Entry(null, null)) == string.Empty);
         }
 
-        // --- stored-passkey state (story P-J) --------------------------------------------------
+        // --- stored-passkey state ---------------------------------------------------------------
         // Exercises the production HasStoredPasskey field-name scan and the ComposeCellValue overlay
         // covering all seven story scenarios. HasStoredPasskey runs against a real PwEntry (the
         // KeePass assembly is already JIT-loaded by the FormatEntry checks above).
@@ -142,8 +142,8 @@ namespace KPPasskeyChecker.SelfCheck
         {
             Section("stored-passkey state (column overlay)");
 
-            // ComposeCellValue truth table (story P-Q: 3rd bool = directoryHasData, i.e. the
-            // directory was consultable for this entry and simply had no match) --------------------
+            // ComposeCellValue truth table (3rd bool = directoryHasData, i.e. the directory was
+            // consultable for this entry and simply had no match) ---------------------------------
             // 2: directory match + stored passkey -> "[Active] <value>" (one prefix only).
             Assert("dir \"Login\" + stored + dataAvailable -> \"[Active] Login\"",
                 PasskeyColumnProvider.ComposeCellValue("Login", true, true) == "[Active] Login");
@@ -156,7 +156,7 @@ namespace KPPasskeyChecker.SelfCheck
                 PasskeyColumnProvider.ComposeCellValue(string.Empty, true, true) == "[Active]");
             Assert("no dir + stored + !dataAvailable -> \"[Active]\"",
                 PasskeyColumnProvider.ComposeCellValue(string.Empty, true, false) == "[Active]");
-            // New (P-Q case a): directory consulted, no hit, no stored passkey -> "[No Data]".
+            // Directory consulted, no hit, no stored passkey -> "[No Data]" (case a).
             Assert("no dir + not stored + dataAvailable -> \"[No Data]\"",
                 PasskeyColumnProvider.ComposeCellValue(string.Empty, false, true) == "[No Data]");
             // 4 + 5: neither, and directory not consultable (case b/c) -> empty.

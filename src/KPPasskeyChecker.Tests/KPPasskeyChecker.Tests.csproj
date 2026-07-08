@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Same TFM as the plugin (net48) — SDK/tooling is .NET 10, TFM stays net48 on purpose;
-         see Story P-N planning notes in CLAUDE.local.md. This project is test infrastructure
-         only and is never shipped in the .plgx / .dll (see build.ps1 — untouched by this project). -->
+    <!-- Same TFM as the plugin (net48) — SDK/tooling is .NET 10, TFM stays net48 on purpose,
+         so ProjectReference/xunit/ArchUnitNET run on net48 without multi-targeting. This project
+         is test infrastructure only and is never shipped in the .plgx / .dll (see build.ps1 —
+         untouched by this project). -->
     <TargetFramework>net48</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>disable</Nullable>

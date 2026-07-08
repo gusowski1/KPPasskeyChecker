@@ -68,7 +68,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
             _output.WriteLine(
                 "Grandfathered pre-0.5.0 classes without tests (technical debt; full coverage "
-                + "tracked in backlog Story P-O):");
+                + "tracked as a backlog item):");
             foreach (var fullName in TestCoverageExemptions.Grandfathered)
             {
                 _output.WriteLine("  - " + fullName);

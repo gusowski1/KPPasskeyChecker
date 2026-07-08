@@ -3,7 +3,7 @@ using KeeRadar.Shared.Pgp;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Story P-S-Folge/N1, Guard 4: UI &#8869; rohe PGP-Interna).
+    /// RED-NACHWEIS-FIXTURE (Guard 4: UI &#8869; rohe PGP-Interna).
     ///
     /// Diese Klasse liegt AUSSCHLIESSLICH im Testprojekt fuer
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard4_ui_pgp_isolation_test_catches_ui_to_raw_pgp_violation"/>

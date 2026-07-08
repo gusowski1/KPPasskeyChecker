@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Story P-S, Guard 2: Nicht-Handler-<c>async void</c> verbieten).
+    /// RED-NACHWEIS-FIXTURE (Guard 2: Nicht-Handler-<c>async void</c> verbieten).
     ///
     /// Diese Klasse liegt AUSSCHLIESSLICH im Testprojekt fuer
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard2_async_void_test_catches_non_handler_violation"/>

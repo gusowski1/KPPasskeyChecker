@@ -4,7 +4,7 @@ using KPPasskeyChecker.UI;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Story P-S, Guard 1: Data.* &#8869; UI).
+    /// RED-NACHWEIS-FIXTURE (Guard 1: Data.* &#8869; UI).
     ///
     /// Diese Klasse existiert AUSSCHLIESSLICH als Testfixture fuer
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard1_layering_test_catches_Data_to_UI_violation"/>.
@@ -37,7 +37,7 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
         // Marker-Konstante, damit dieser Fixture-Zweck auch ohne den Klassenkommentar
         // oben unmissverstaendlich bleibt, falls die Datei isoliert betrachtet wird.
         public const string Purpose =
-            "TDD ROT-Nachweis fuer P-S Guard 1 (Data.* darf nicht von UI/WinForms abhaengen).";
+            "TDD ROT-Nachweis fuer Guard 1 (Data.* darf nicht von UI/WinForms abhaengen).";
     }
 }
 
