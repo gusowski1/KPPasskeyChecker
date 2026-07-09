@@ -59,6 +59,11 @@ namespace KPPasskeyChecker.Data
         }
 
         // Verletzung B: direkte Abhaengigkeit von KPPasskeyChecker.UI.*.
+        // CS0649 ist absichtlich unterdrueckt: der Guard prueft den DEKLARIERTEN TYP des Feldes
+        // (die Typ-Abhaengigkeit), nicht seinen Laufzeitwert -- das Feld bleibt daher bewusst
+        // unzugewiesen.
+#pragma warning disable CS0649
         public PasskeyColumnProvider RogueUiReference;
+#pragma warning restore CS0649
     }
 }

@@ -52,6 +52,11 @@ namespace KPPasskeyChecker.UI
         // (KeeRadar.Shared.Pgp.OpenPgpSignatureVerifier) aus einem UI-Typ. PgpVerificationResult
         // (das Ergebnis-DTO) waere erlaubt gewesen -- diese Fixture nutzt bewusst den verbotenen
         // Verifier-Typ, nicht das DTO.
+        // CS0649 ist absichtlich unterdrueckt: der Guard prueft den DEKLARIERTEN TYP des Feldes
+        // (die Typ-Abhaengigkeit), nicht seinen Laufzeitwert -- das Feld bleibt daher bewusst
+        // unzugewiesen.
+#pragma warning disable CS0649
         public OpenPgpSignatureVerifier RogueVerifierReference;
+#pragma warning restore CS0649
     }
 }

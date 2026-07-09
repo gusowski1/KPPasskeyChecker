@@ -10,6 +10,9 @@
     <Nullable>disable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- No warning may pass silently: a compiler warning fails the build, same gate as SelfCheck's
+         csc /warnaserror. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

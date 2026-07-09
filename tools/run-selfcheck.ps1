@@ -73,7 +73,7 @@ $KeePassDst = Join-Path $ToolsDir ([System.IO.Path]::GetFileName($KeePassExe))
 $code = 1
 try {
     Write-Host "==> Compiling self-check harness (csc /langversion:5)" -ForegroundColor Cyan
-    $cscArgs = @('/nologo','/target:exe','/langversion:5',"/out:$OutExe")
+    $cscArgs = @('/nologo','/target:exe','/langversion:5','/warnaserror',"/out:$OutExe")
     foreach ($r in @('System.dll','System.Core.dll','System.Drawing.dll','System.IO.Compression.dll',
                      'System.Net.Http.dll','System.Web.Extensions.dll','System.Windows.Forms.dll')) {
         $cscArgs += "/reference:$r"

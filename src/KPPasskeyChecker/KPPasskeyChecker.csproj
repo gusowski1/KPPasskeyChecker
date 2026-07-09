@@ -9,6 +9,9 @@
     <LangVersion>5</LangVersion>
     <Nullable>disable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- No warning may pass silently: a compiler warning fails the build, same gate as SelfCheck's
+         csc /warnaserror. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Use the hand-written Properties/AssemblyInfo.cs (it sets ProductName "KeePass Plugin",
          which KeePass requires, plus the version that drives the update check). -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
