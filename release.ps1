@@ -421,6 +421,15 @@ switch ($Stage) {
         $notes = Get-ChangelogSection $Version
         Confirm-Or-Exit ("Create GitHub release {0} ({1}) from main with built assets?" -f $tag, $Type)
 
+        # Self-check: run before any changes; abort immediately on failure.
+        Write-Host "==> Running self-check" -ForegroundColor Cyan
+        & "$RepoRoot\tools\run-selfcheck.ps1"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Self-check failed. Fix the code and re-run Publish."
+        }
+        Write-Host "  Self-check passed." -ForegroundColor Green
+        Write-Host ""
+
         # xUnit tests: mandatory gate before build.
         Write-Host "==> Running dotnet test (xUnit gate)" -ForegroundColor Cyan
         & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo
