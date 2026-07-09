@@ -330,6 +330,13 @@ switch ($Stage) {
         Write-Host "  Self-check passed." -ForegroundColor Green
         Write-Host ""
 
+        # xUnit tests: mandatory gate.
+        Write-Host "==> Running dotnet test (xUnit gate)" -ForegroundColor Cyan
+        & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo
+        if ($LASTEXITCODE -ne 0) { throw "xUnit tests failed. Fix the code and re-run Prepare." }
+        Write-Host "  xUnit tests passed." -ForegroundColor Green
+        Write-Host ""
+
         # Resumability checks: skip steps already completed.
         $alreadyBumped = ($current -eq $Version)
         $remoteOutput  = (git ls-remote --heads origin $branch 2>&1) -join ''
@@ -413,6 +420,13 @@ switch ($Stage) {
 
         $notes = Get-ChangelogSection $Version
         Confirm-Or-Exit ("Create GitHub release {0} ({1}) from main with built assets?" -f $tag, $Type)
+
+        # xUnit tests: mandatory gate before build.
+        Write-Host "==> Running dotnet test (xUnit gate)" -ForegroundColor Cyan
+        & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo
+        if ($LASTEXITCODE -ne 0) { throw "xUnit tests failed. Fix the code and re-run Publish." }
+        Write-Host "  xUnit tests passed." -ForegroundColor Green
+        Write-Host ""
 
         Invoke-Build
         $assets    = Get-Assets $plugin
