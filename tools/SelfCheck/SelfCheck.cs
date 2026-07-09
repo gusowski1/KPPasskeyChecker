@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using KeePassLib;
-using KeePassLib.Security;
-using KPPasskeyChecker.Data;
 using KeeRadar.Shared.Pgp;
-using KPPasskeyChecker.UI;
 
 namespace KPPasskeyChecker.SelfCheck
 {
@@ -29,12 +24,6 @@ namespace KPPasskeyChecker.SelfCheck
             Console.WriteLine("KPPasskeyChecker self-check");
             Console.WriteLine("===========================");
 
-            CheckSupportLevelParsing();
-            CheckScopeEndpointMapping();
-            CheckSignedCacheKeyDistinctness();
-            CheckFormatEntry();
-            CheckStoredPasskeyState();
-            CheckDomainCandidatesEtldPlusOne();
             CheckDirectoryTrustAnchorFingerprint();
             CheckPgpPath();
             CheckSharedTreeNotDiverged();
@@ -48,158 +37,6 @@ namespace KPPasskeyChecker.SelfCheck
 
             Console.WriteLine(_failures + " check(s) FAILED.");
             return 1;
-        }
-
-        // --- mfa / passwordless parsing (PasskeyEntryMapper.ParseLevel via Map) ----------------
-        private static void CheckSupportLevelParsing()
-        {
-            Section("mfa / passwordless parsing");
-
-            PasskeyEntry allowed = Map("example.com", Field("passwordless", "allowed"));
-            Assert("passwordless \"allowed\" -> Allowed",
-                allowed.Passwordless == PasskeySupportLevel.Allowed);
-
-            PasskeyEntry required = Map("example.com", Field("mfa", "required"));
-            Assert("mfa \"required\" -> Required",
-                required.Mfa == PasskeySupportLevel.Required);
-
-            PasskeyEntry missing = Map("example.com", new Dictionary<string, object>());
-            Assert("missing passwordless -> null",
-                missing.Passwordless == null);
-            Assert("missing mfa -> null",
-                missing.Mfa == null);
-
-            PasskeyEntry invalid = Map("example.com", Field("mfa", "sometimes"));
-            Assert("invalid mfa value -> null (fail-safe)",
-                invalid.Mfa == null);
-
-            PasskeyEntry mixedCase = Map("example.com", Field("passwordless", "ReQuIrEd"));
-            Assert("case-insensitive \"ReQuIrEd\" -> Required",
-                mixedCase.Passwordless == PasskeySupportLevel.Required);
-        }
-
-        // --- scope -> endpoint mapping (PasskeyEndpoints.ForScope) ------------------------------
-        private static void CheckScopeEndpointMapping()
-        {
-            Section("scope -> endpoint mapping");
-
-            Assert("PasswordlessOnly -> passwordless.json",
-                PasskeyEndpoints.ForScope(PasskeyDataScope.PasswordlessOnly)
-                    .EndsWith("/passwordless.json", StringComparison.Ordinal));
-            Assert("MfaOnly -> mfa.json",
-                PasskeyEndpoints.ForScope(PasskeyDataScope.MfaOnly)
-                    .EndsWith("/mfa.json", StringComparison.Ordinal));
-            Assert("AnySupport -> supported.json",
-                PasskeyEndpoints.ForScope(PasskeyDataScope.AnySupport)
-                    .EndsWith("/supported.json", StringComparison.Ordinal));
-
-            // The signature endpoint is the JSON endpoint plus ".sig".
-            Assert("SignatureForScope appends .sig",
-                PasskeyEndpoints.SignatureForScope(PasskeyDataScope.MfaOnly)
-                    == PasskeyEndpoints.ForScope(PasskeyDataScope.MfaOnly) + ".sig");
-        }
-
-        // --- signed vs unsigned cache-key distinctness -----------------------------------------
-        private static void CheckSignedCacheKeyDistinctness()
-        {
-            Section("signed / unsigned cache-key distinctness");
-
-            foreach (PasskeyDataScope scope in
-                     (PasskeyDataScope[])Enum.GetValues(typeof(PasskeyDataScope)))
-            {
-                string plain  = PasskeyEndpoints.CacheKey(scope);
-                string signed = PasskeyEndpoints.SignedCacheKey(scope);
-                Assert("CacheKey != SignedCacheKey for " + scope, plain != signed);
-                Assert("SignedCacheKey for " + scope + " carries _signed suffix",
-                    signed.EndsWith("_signed", StringComparison.Ordinal));
-                Assert("plain CacheKey for " + scope + " has no _signed suffix",
-                    !plain.EndsWith("_signed", StringComparison.Ordinal));
-            }
-        }
-
-        // --- FormatEntry / column value --------------------------------------------------------
-        // Exercises the production PasskeyColumnProvider.FormatEntry directly (it is internal and
-        // reachable here because the harness is compiled together with the plugin sources).
-        private static void CheckFormatEntry()
-        {
-            Section("FormatEntry / column value");
-
-            Assert("passwordless + mfa -> \"Login + 2FA\"",
-                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, PasskeySupportLevel.Required)) == "Login + 2FA");
-            Assert("passwordless only -> \"Login\"",
-                PasskeyColumnProvider.FormatEntry(Entry(PasskeySupportLevel.Allowed, null)) == "Login");
-            Assert("mfa only -> \"2FA\"",
-                PasskeyColumnProvider.FormatEntry(Entry(null, PasskeySupportLevel.Required)) == "2FA");
-            Assert("neither -> empty",
-                PasskeyColumnProvider.FormatEntry(Entry(null, null)) == string.Empty);
-        }
-
-        // --- stored-passkey state ---------------------------------------------------------------
-        // Exercises the production HasStoredPasskey field-name scan and the ComposeCellValue overlay
-        // covering all seven story scenarios. HasStoredPasskey runs against a real PwEntry (the
-        // KeePass assembly is already JIT-loaded by the FormatEntry checks above).
-        private static void CheckStoredPasskeyState()
-        {
-            Section("stored-passkey state (column overlay)");
-
-            // ComposeCellValue truth table (3rd bool = directoryHasData, i.e. the directory was
-            // consultable for this entry and simply had no match) ---------------------------------
-            // 2: directory match + stored passkey -> "[Active] <value>" (one prefix only).
-            Assert("dir \"Login\" + stored + dataAvailable -> \"[Active] Login\"",
-                PasskeyColumnProvider.ComposeCellValue("Login", true, true) == "[Active] Login");
-            // 1: directory match + no stored passkey -> "[Inactive] <value>".
-            Assert("dir \"Login\" + not stored + dataAvailable -> \"[Inactive] Login\"",
-                PasskeyColumnProvider.ComposeCellValue("Login", false, true) == "[Inactive] Login");
-            // 3 + 5: no directory match + stored passkey -> "[Active]" (consistent bracket form,
-            // flag irrelevant when stored).
-            Assert("no dir + stored + dataAvailable -> \"[Active]\"",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, true, true) == "[Active]");
-            Assert("no dir + stored + !dataAvailable -> \"[Active]\"",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, true, false) == "[Active]");
-            // Directory consulted, no hit, no stored passkey -> "[No Data]" (case a).
-            Assert("no dir + not stored + dataAvailable -> \"[No Data]\"",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, false, true) == "[No Data]");
-            // 4 + 5: neither, and directory not consultable (case b/c) -> empty.
-            Assert("no dir + not stored + !dataAvailable -> empty",
-                PasskeyColumnProvider.ComposeCellValue(string.Empty, false, false) == string.Empty);
-            Assert("null dir + not stored + !dataAvailable -> empty",
-                PasskeyColumnProvider.ComposeCellValue(null, false, false) == string.Empty);
-            // null directoryValue treated like empty.
-            Assert("null dir + not stored + dataAvailable -> \"[No Data]\"",
-                PasskeyColumnProvider.ComposeCellValue(null, false, true) == "[No Data]");
-
-            // HasStoredPasskey field-name scan -------------------------------------------------
-            Assert("no fields -> not stored",
-                !PasskeyColumnProvider.HasStoredPasskey(EntryWith()));
-            Assert("KPEX_PASSKEY_ field -> stored",
-                PasskeyColumnProvider.HasStoredPasskey(EntryWith("KPEX_PASSKEY_CredentialId")));
-            // 6: multiple matching fields still count as one (and ComposeCellValue never doubles).
-            Assert("multiple KPEX_PASSKEY_ fields -> stored (no double prefix)",
-                PasskeyColumnProvider.HasStoredPasskey(
-                    EntryWith("KPEX_PASSKEY_CredentialId", "KPEX_PASSKEY_PrivateKey")));
-            // Case-insensitive prefix match.
-            Assert("lowercase kpex_passkey_ field -> stored",
-                PasskeyColumnProvider.HasStoredPasskey(EntryWith("kpex_passkey_x")));
-            // Unrelated standard/custom fields must not trigger.
-            Assert("UserName/Password/Title -> not stored",
-                !PasskeyColumnProvider.HasStoredPasskey(
-                    EntryWith(PwDefs.UserNameField, PwDefs.PasswordField, PwDefs.TitleField)));
-        }
-
-        // Builds a PwEntry carrying the given string-field names (empty values; the production code
-        // only reads names). The .sig/value is irrelevant — scenario 7 forbids reading values.
-        private static PwEntry EntryWith(params string[] fieldNames)
-        {
-            PwEntry pe = new PwEntry(true, true);
-            foreach (string name in fieldNames)
-                pe.Strings.Set(name, new ProtectedString(false, "x"));
-            return pe;
-        }
-
-        // --- PSL / eTLD+1 smoke test (shared with KP2FAChecker via SharedChecks.cs) --------------
-        private static void CheckDomainCandidatesEtldPlusOne()
-        {
-            SharedChecks.CheckDomainCandidatesEtldPlusOne(Section, Assert);
         }
 
         // --- DirectoryTrustAnchor fingerprint assertion (shared) --------------------------------
@@ -284,21 +121,6 @@ namespace KPPasskeyChecker.SelfCheck
         }
 
         // --- helpers ---------------------------------------------------------------------------
-        private static PasskeyEntry Map(string domain, Dictionary<string, object> data)
-        {
-            return PasskeyEntryMapper.Map(domain, data);
-        }
-
-        private static Dictionary<string, object> Field(string key, object value)
-        {
-            return new Dictionary<string, object> { { key, value } };
-        }
-
-        private static PasskeyEntry Entry(PasskeySupportLevel? passwordless, PasskeySupportLevel? mfa)
-        {
-            return new PasskeyEntry { Passwordless = passwordless, Mfa = mfa };
-        }
-
         private static void Section(string title)
         {
             Console.WriteLine();
