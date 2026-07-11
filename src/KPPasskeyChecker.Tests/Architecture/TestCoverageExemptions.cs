@@ -89,6 +89,22 @@ namespace KPPasskeyChecker.Tests.Architecture
         public static bool IsGrandfathered(Type t) => Grandfathered.Contains(t.FullName);
 
         /// <summary>
+        /// True if <paramref name="t"/>'s name ends with the KeePass plugin entry-point suffix
+        /// "Ext" (e.g. <c>KPPasskeyCheckerExt</c>). Exposed separately from <see cref="IsExempt"/>
+        /// so <c>CoverageExemptionSyncTests</c> can recognise a coverlet coverage-exclude pattern
+        /// for such a type as structurally justified by this SAME rule, without a redundant,
+        /// hardcoded per-class <see cref="Entries"/> listing.
+        /// </summary>
+        public static bool IsEntrypointExt(Type t) => t.Name.EndsWith("Ext", StringComparison.Ordinal);
+
+        /// <summary>
+        /// True if <paramref name="t"/> derives from <see cref="System.Windows.Forms.Form"/>.
+        /// Exposed separately from <see cref="IsExempt"/> for the same reuse reason as
+        /// <see cref="IsEntrypointExt"/>.
+        /// </summary>
+        public static bool IsWinFormsFormDerivation(Type t) => typeof(Form).IsAssignableFrom(t);
+
+        /// <summary>
         /// True if <paramref name="t"/> is exempt from the needs-tests guard — either via a
         /// structural convention rule or via an explicit <see cref="Entries"/> listing.
         /// </summary>
@@ -113,7 +129,7 @@ namespace KPPasskeyChecker.Tests.Architecture
             }
 
             // KeePass entry points: class name ends with "Ext".
-            if (t.Name.EndsWith("Ext", StringComparison.Ordinal))
+            if (IsEntrypointExt(t))
             {
                 return true;
             }
@@ -126,7 +142,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
             // WinForms UI (Forms / user controls): visual/event-driven, not unit-testable in
             // isolation without a UI harness (covers e.g. PasskeySettingsForm, EntryDetailForm).
-            if (typeof(Form).IsAssignableFrom(t) || typeof(UserControl).IsAssignableFrom(t))
+            if (IsWinFormsFormDerivation(t) || typeof(UserControl).IsAssignableFrom(t))
             {
                 return true;
             }

@@ -8,6 +8,13 @@
   versa). Note for editors: the sync test locates this element via a raw-text regex, not an
   XML parser, so this comment intentionally avoids spelling out the element's own tag name.
 
+  Two entries below (KPPasskeyCheckerExt, PasskeySettingsForm) are NOT individually documented
+  TestCoverageExemptions.Entries items — they are structural excludes, allowed by the sync test
+  because the named type is itself structurally exempt from the needs-tests guard (Ext-suffix /
+  Form-derivation, see TestCoverageExemptions.IsEntrypointExt / IsWinFormsFormDerivation): the
+  KeePass plugin entry point and the WinForms settings dialog carry no unit-testable logic of
+  their own, so a per-class coverage threshold would only ever measure UI/host-wiring noise.
+
   Usage: dotnet test KPPasskeyChecker.sln -settings coverage.runsettings -collect:"XPlat Code Coverage" (with the usual double-dash CLI flags).
 -->
 <RunSettings>
@@ -17,7 +24,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Include>[KPPasskeyChecker]*</Include>
-          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KeePass]*,[xunit*]*</Exclude>
+          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KPPasskeyChecker]KPPasskeyChecker.KPPasskeyCheckerExt,[KPPasskeyChecker]KPPasskeyChecker.Settings.PasskeySettingsForm,[KeePass]*,[xunit*]*</Exclude>
           <IncludeTestAssembly>false</IncludeTestAssembly>
         </Configuration>
       </DataCollector>

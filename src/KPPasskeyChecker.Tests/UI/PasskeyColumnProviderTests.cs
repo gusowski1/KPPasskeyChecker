@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using KeePassLib;
 using KeePassLib.Security;
 using KPPasskeyChecker.Data;
@@ -15,9 +17,40 @@ namespace KPPasskeyChecker.Tests.UI
     /// members of
     /// PasskeyColumnProvider; all are covered here. ComposeCellValue/FormatEntry/HasStoredPasskey
     /// are ported 1:1 from tools\SelfCheck\SelfCheck.cs (CheckFormatEntry / CheckStoredPasskeyState).
+    ///
+    /// Additionally covered here (QA coverage pass, without live KeePass services):
+    /// <list type="bullet">
+    /// <item><c>GetCellData</c> — the directory-unavailable branch. No test in this assembly ever
+    /// calls <see cref="PasskeyDirectoryService.Initialize"/>, so
+    /// <see cref="PasskeyDirectoryService.IsAvailable"/> is false for the whole run and
+    /// <c>LookupDirectoryValue</c> short-circuits before ever reaching <c>ExtractHost</c> — this
+    /// exercises the full public method deterministically, with no live HTTP/service dependency.
+    /// The directory-available branch needs a live <see cref="PasskeyDirectoryService"/> (HTTP
+    /// fetch + background timer, no injection seam — see its documented
+    /// <c>TestCoverageExemptions.Entries</c> reason) and stays out of scope here.</item>
+    /// <item><c>PerformCellAction</c> / <c>ShowDetailDialog</c> — only their early-return guard
+    /// clauses (wrong column name, null entry). Reaching past the guard calls
+    /// <c>EntryDetailForm.ShowDialog()</c> (a modal WinForms dialog), which cannot run headless in
+    /// a unit test — deliberately not exercised here.</item>
+    /// <item><c>ExtractHost</c> — a private, pure (KeePass-free logic, only reads
+    /// <c>PwEntry.Strings</c>) URL-to-host parser, invoked via reflection (same established pattern
+    /// as <c>PasskeyDirectoryTests.Build</c> for a non-public static member): missing/blank URL,
+    /// scheme-less host, full URL, and a malformed URL that trips the internal catch.</item>
+    /// <item><c>Lookup</c> — a private domain-candidate walk over a <see cref="PasskeyDirectory"/>,
+    /// invoked via reflection together with the same <c>PasskeyDirectory.Build</c> reflection helper
+    /// used by <c>PasskeyDirectoryTests</c>: direct match, subdomain-candidate match, and no match.</item>
+    /// </list>
     /// </summary>
     public class PasskeyColumnProviderTests
     {
+        [Fact]
+        public void ColumnNames_returns_the_single_column_name()
+        {
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            Assert.Equal(new[] { PasskeyColumnProvider.ColumnName }, provider.ColumnNames);
+        }
+
         [Fact]
         public void SupportsCellAction_column_name_returns_true()
         {
@@ -121,6 +154,143 @@ namespace KPPasskeyChecker.Tests.UI
                 EntryWith(PwDefs.UserNameField, PwDefs.PasswordField, PwDefs.TitleField)));
         }
 
+        // ---- GetCellData: directory-unavailable branch (no live KeePass service needed) ---------
+
+        [Fact]
+        public void GetCellData_directory_unavailable_no_stored_passkey_returns_empty()
+        {
+            Assert.False(
+                PasskeyDirectoryService.IsAvailable,
+                "Precondition: no test in this assembly calls PasskeyDirectoryService.Initialize, "
+                    + "so GetCellData must take the directory-unavailable branch here.");
+
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            Assert.Equal(string.Empty, provider.GetCellData(PasskeyColumnProvider.ColumnName, EntryWith()));
+        }
+
+        [Fact]
+        public void GetCellData_directory_unavailable_with_stored_passkey_returns_active()
+        {
+            Assert.False(
+                PasskeyDirectoryService.IsAvailable,
+                "Precondition: no test in this assembly calls PasskeyDirectoryService.Initialize, "
+                    + "so GetCellData must take the directory-unavailable branch here.");
+
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            Assert.Equal(
+                "[Active]",
+                provider.GetCellData(PasskeyColumnProvider.ColumnName, EntryWith("KPEX_PASSKEY_CredentialId")));
+        }
+
+        // ---- PerformCellAction / ShowDetailDialog: guard clauses only ---------------------------
+        // Reaching past these guards calls EntryDetailForm.ShowDialog() (a modal WinForms dialog),
+        // which cannot run headless in a unit test — deliberately not exercised beyond the guard.
+
+        [Fact]
+        public void PerformCellAction_wrong_column_name_is_a_no_op()
+        {
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            provider.PerformCellAction("Some Other Column", EntryWith());
+        }
+
+        [Fact]
+        public void PerformCellAction_null_entry_is_a_no_op()
+        {
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            provider.PerformCellAction(PasskeyColumnProvider.ColumnName, null);
+        }
+
+        [Fact]
+        public void ShowDetailDialog_null_entry_is_a_no_op()
+        {
+            PasskeyColumnProvider provider = new PasskeyColumnProvider(null);
+
+            provider.ShowDetailDialog(null);
+        }
+
+        // ---- ExtractHost: private, pure URL-to-host parser (reflection, same pattern as ---------
+        // ---- PasskeyDirectoryTests.Build for a non-public static member) ------------------------
+
+        [Fact]
+        public void ExtractHost_no_url_field_returns_null()
+        {
+            Assert.Null(ExtractHost(EntryWith()));
+        }
+
+        [Fact]
+        public void ExtractHost_blank_url_returns_null()
+        {
+            PwEntry pe = new PwEntry(true, true);
+            pe.Strings.Set(PwDefs.UrlField, new ProtectedString(false, "   "));
+
+            Assert.Null(ExtractHost(pe));
+        }
+
+        [Fact]
+        public void ExtractHost_scheme_less_host_gets_https_prefixed_and_parsed()
+        {
+            PwEntry pe = new PwEntry(true, true);
+            pe.Strings.Set(PwDefs.UrlField, new ProtectedString(false, "example.com"));
+
+            Assert.Equal("example.com", ExtractHost(pe));
+        }
+
+        [Fact]
+        public void ExtractHost_full_url_with_scheme_returns_host()
+        {
+            PwEntry pe = new PwEntry(true, true);
+            pe.Strings.Set(PwDefs.UrlField, new ProtectedString(false, "https://example.com/path?q=1"));
+
+            Assert.Equal("example.com", ExtractHost(pe));
+        }
+
+        [Fact]
+        public void ExtractHost_malformed_url_is_caught_and_returns_null()
+        {
+            // Already contains "://" (so no https:// prefix is applied) but has no host component
+            // -> new Uri(...) throws UriFormatException, caught internally, returns null.
+            PwEntry pe = new PwEntry(true, true);
+            pe.Strings.Set(PwDefs.UrlField, new ProtectedString(false, "https://"));
+
+            Assert.Null(ExtractHost(pe));
+        }
+
+        // ---- Lookup: private domain-candidate walk over a PasskeyDirectory (reflection) ---------
+
+        [Fact]
+        public void Lookup_direct_host_match_returns_entry()
+        {
+            PasskeyDirectory dir = BuildDirectory(RawWithDomain("example.com"));
+
+            PasskeyEntry entry = Lookup(dir, "example.com");
+
+            Assert.NotNull(entry);
+            Assert.Equal("example.com", entry.PrimaryDomain);
+        }
+
+        [Fact]
+        public void Lookup_subdomain_walks_up_to_registrable_domain_match()
+        {
+            PasskeyDirectory dir = BuildDirectory(RawWithDomain("example.com"));
+
+            PasskeyEntry entry = Lookup(dir, "mail.example.com");
+
+            Assert.NotNull(entry);
+            Assert.Equal("example.com", entry.PrimaryDomain);
+        }
+
+        [Fact]
+        public void Lookup_no_match_anywhere_returns_null()
+        {
+            PasskeyDirectory dir = BuildDirectory(RawWithDomain("example.com"));
+
+            Assert.Null(Lookup(dir, "totally-different.example"));
+        }
+
         // Mirrors tools\SelfCheck\SelfCheck.cs Entry(...): builds a PasskeyEntry directly (no
         // directory JSON mapping involved — FormatEntry only reads Passwordless/Mfa).
         private static PasskeyEntry Entry(PasskeySupportLevel? passwordless, PasskeySupportLevel? mfa)
@@ -136,6 +306,40 @@ namespace KPPasskeyChecker.Tests.UI
             foreach (string name in fieldNames)
                 pe.Strings.Set(name, new ProtectedString(false, "x"));
             return pe;
+        }
+
+        private static string ExtractHost(PwEntry pe)
+        {
+            MethodInfo method = typeof(PasskeyColumnProvider).GetMethod(
+                "ExtractHost", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method); // fails loudly if the internal signature ever changes
+            return (string)method.Invoke(null, new object[] { pe });
+        }
+
+        private static PasskeyEntry Lookup(PasskeyDirectory dir, string host)
+        {
+            MethodInfo method = typeof(PasskeyColumnProvider).GetMethod(
+                "Lookup", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method); // fails loudly if the internal signature ever changes
+            return (PasskeyEntry)method.Invoke(null, new object[] { dir, host });
+        }
+
+        // Mirrors PasskeyDirectoryTests.Build: PasskeyDirectory.Build is internal, invoked via
+        // reflection (same signature/pattern already pinned there).
+        private static PasskeyDirectory BuildDirectory(Dictionary<string, object> raw)
+        {
+            MethodInfo method = typeof(PasskeyDirectory).GetMethod(
+                "Build", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method); // fails loudly if the internal signature ever changes
+            return (PasskeyDirectory)method.Invoke(null, new object[] { raw });
+        }
+
+        private static Dictionary<string, object> RawWithDomain(string domain)
+        {
+            return new Dictionary<string, object>
+            {
+                { domain, new Dictionary<string, object> { { "mfa", "allowed" } } }
+            };
         }
     }
 }

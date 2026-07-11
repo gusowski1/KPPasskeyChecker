@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Xunit;
 using Xunit.Abstractions;
@@ -20,12 +21,21 @@ namespace KPPasskeyChecker.Tests.Architecture
     ///
     /// Direction B: every exclude pattern that targets a specific type in the plugin assembly
     /// must correspond to a documented <see cref="TestCoverageExemptions.Entries"/> item — no
-    /// silent additional exclusions. Foreign-assembly patterns (e.g. "[KeePass]*", "[xunit*]*")
-    /// are structural and are never subject to Direction B.
+    /// silent additional exclusions. Three kinds of pattern are whitelisted and never subject to
+    /// Direction B: (1) foreign-assembly patterns (e.g. "[KeePass]*", "[xunit*]*"), and (2)/(3) a
+    /// pattern whose named type resolves in the production assembly and is itself structurally
+    /// exempt from the needs-tests guard via the Ext-suffix or Form-derivation rule (see
+    /// <see cref="TestCoverageExemptions.IsEntrypointExt"/> /
+    /// <see cref="TestCoverageExemptions.IsWinFormsFormDerivation"/>) — the coverage exclude is
+    /// then justified by the SAME structural rule the needs-tests guard already enforces, rather
+    /// than a second, hardcoded per-class list (e.g. KPPasskeyCheckerExt, PasskeySettingsForm).
     /// </summary>
     public class CoverageExemptionSyncTests
     {
         private const string PluginAssemblyName = "KPPasskeyChecker";
+
+        private static readonly Assembly ProductionAssembly =
+            typeof(KPPasskeyChecker.KPPasskeyCheckerExt).Assembly;
 
         private static readonly Regex ExcludeElementPattern =
             new Regex("<Exclude>(.*?)</Exclude>", RegexOptions.Singleline);
@@ -80,13 +90,15 @@ namespace KPPasskeyChecker.Tests.Architecture
             var undocumented = excludePatterns
                 .Where(IsSubjectToDirectionB)
                 .Where(p => !documented.Contains(p))
+                .Where(p => !IsStructurallyExemptPattern(p))
                 .ToList();
 
             Assert.True(
                 undocumented.Count == 0,
                 "coverage.runsettings excludes types that are not documented in "
-                    + "TestCoverageExemptions.Entries (remove the pattern or add a reasoned "
-                    + "entry): " + string.Join(", ", undocumented));
+                    + "TestCoverageExemptions.Entries and are not structurally exempt (Ext-suffix "
+                    + "or Form-derivation) either (remove the pattern or add a reasoned entry): "
+                    + string.Join(", ", undocumented));
         }
 
         /// <summary>
@@ -99,6 +111,32 @@ namespace KPPasskeyChecker.Tests.Architecture
         {
             string prefix = "[" + PluginAssemblyName + "]";
             return pattern.StartsWith(prefix, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// True if <paramref name="pattern"/> names a type that resolves in the production
+        /// assembly AND is structurally exempt from the needs-tests guard via the Ext-suffix or
+        /// Form-derivation rule (see class remarks). A pattern whose type cannot be resolved, or
+        /// that resolves to a type covered by neither rule, is NOT structurally exempt and must
+        /// instead be a documented <see cref="TestCoverageExemptions.Entries"/> item.
+        /// </summary>
+        private static bool IsStructurallyExemptPattern(string pattern)
+        {
+            string prefix = "[" + PluginAssemblyName + "]";
+            if (!pattern.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            string typeFullName = pattern.Substring(prefix.Length);
+            Type type = ProductionAssembly.GetType(typeFullName);
+            if (type == null)
+            {
+                return false;
+            }
+
+            return TestCoverageExemptions.IsEntrypointExt(type)
+                || TestCoverageExemptions.IsWinFormsFormDerivation(type);
         }
 
         private static IReadOnlyList<string> ParseExcludePatterns(string runSettingsPath)

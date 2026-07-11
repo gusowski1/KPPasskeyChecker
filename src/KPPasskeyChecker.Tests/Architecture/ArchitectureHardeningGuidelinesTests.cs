@@ -151,6 +151,11 @@ namespace KPPasskeyChecker.Tests.Architecture
     ///   - `System.Collections.Generic.IReadOnlyList&lt;string&gt; ArchitectureHardeningGuidelines.FindRealFormsWithoutFormSuffix()`
     ///     (scans BOTH the production assembly and the test assembly)
     ///   - `bool ArchitectureHardeningGuidelines.IsWinFormsEventHandler(System.Reflection.MethodInfo m)`
+    ///
+    /// Additive additive hardening guards (BCL-only shipping, empty-catch source scan, HttpClient
+    /// encapsulation) are appended below the original nine scenarios; see the XML docs on their
+    /// respective <see cref="ArchitectureHardeningGuidelines"/> members and on the permanent
+    /// Synthetik-fixtures in Architecture\Fixtures\*.cs for the exact expectations.
     /// </summary>
     public class ArchitectureHardeningGuidelinesTests
     {
@@ -395,6 +400,133 @@ namespace KPPasskeyChecker.Tests.Architecture
                     .Check(ArchitectureHardeningGuidelines.ProductionAndTestArchitecture));
 
             Assert.Contains("RogueUiPgpConsumer", ex.Message, StringComparison.Ordinal);
+        }
+
+        // ---- BCL-only-shipping guard: production types depend only on BCL/KeePass/self -----
+
+        /// <summary>
+        /// Green-today assertion: real production code (KPPasskeyChecker.* + KeeRadar.Shared.*)
+        /// depends only on the .NET BCL, KeePass, and itself. Uses the domain-model scan
+        /// (<see cref="ArchitectureHardeningGuidelines.FindForeignNamespaceDependencies"/>), not the
+        /// Fluent DSL — see that method's remarks for why.
+        /// </summary>
+        [Fact]
+        public void BclOnly_rule_is_green_against_real_production_code()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindForeignNamespaceDependencies(
+                ArchitectureHardeningGuidelines.ProductionOnlyArchitecture);
+
+            Assert.True(
+                offenders.Count == 0,
+                "Production types must depend only on the .NET BCL, KeePass, and themselves:"
+                    + Environment.NewLine + "  " + string.Join(Environment.NewLine + "  ", offenders));
+        }
+
+        /// <summary>
+        /// ROT-proof: Fixtures.BclOnlyLeakFixture.cs (namespace KPPasskeyChecker.Data, physically in
+        /// the test assembly) depends on Xunit.FactAttribute — must be caught once the architecture
+        /// additionally includes the test assembly.
+        /// </summary>
+        [Fact]
+        public void BclOnly_test_catches_foreign_namespace_violation()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindForeignNamespaceDependencies(
+                ArchitectureHardeningGuidelines.ProductionAndTestArchitecture);
+
+            Assert.Contains(offenders, o => o.Contains("RogueBclOnlyLeakType") && o.Contains("Xunit"));
+        }
+
+        /// <summary>
+        /// BCL-only-shipping guard PLUS-assertion: the shipped plugin project file (src\KPPasskeyChecker\
+        /// KPPasskeyChecker.csproj) carries no &lt;PackageReference&gt; element.
+        /// </summary>
+        [Fact]
+        public void BclOnly_plugin_csproj_has_no_package_reference()
+        {
+            string csprojPath = ArchitectureHardeningGuidelines.PluginCsprojPath();
+            var references = ArchitectureHardeningGuidelines.FindPackageReferencesInCsproj(csprojPath);
+
+            Assert.True(
+                references.Count == 0,
+                "KPPasskeyChecker.csproj must not carry a PackageReference (BCL-only shipping): "
+                    + string.Join(", ", references));
+        }
+
+        // ---- HttpClient-encapsulation guard: non-transport production types must not depend on HttpClient --------------
+
+        /// <summary>
+        /// Green-today assertion: only the transport set (PasskeyApiClient, ConditionalHttpFetcher,
+        /// and — a finding surfaced while implementing this guard, see
+        /// <see cref="ArchitectureHardeningGuidelines"/>'s remarks on
+        /// <c>HttpTransportTypeFullNames</c> — DomainCandidateGenerator) depends on HttpClient.
+        /// </summary>
+        [Fact]
+        public void HttpClient_rule_is_green_against_real_production_code()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindNonTransportHttpClientDependencies(
+                ArchitectureHardeningGuidelines.ProductionOnlyArchitecture);
+
+            Assert.True(
+                offenders.Count == 0,
+                "Only the transport set (PasskeyApiClient, ConditionalHttpFetcher, "
+                    + "DomainCandidateGenerator) may depend on HttpClient:"
+                    + Environment.NewLine + "  " + string.Join(Environment.NewLine + "  ", offenders));
+        }
+
+        /// <summary>
+        /// ROT-proof: Fixtures.HttpClientLeakFixture.cs (namespace KPPasskeyChecker.UI, physically in
+        /// the test assembly, NOT a transport-set member) depends on HttpClient directly — must be
+        /// caught once the architecture additionally includes the test assembly.
+        /// </summary>
+        [Fact]
+        public void HttpClient_test_catches_non_transport_violation()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindNonTransportHttpClientDependencies(
+                ArchitectureHardeningGuidelines.ProductionAndTestArchitecture);
+
+            Assert.Contains(offenders, o => o.Contains("RogueHttpClientLeakType"));
+        }
+
+        // ---- empty-catch guard: no (non-whitelisted) empty catch blocks in production source ---------------
+
+        /// <summary>
+        /// Scans the real production source tree (src\Shared + src\KPPasskeyChecker) via
+        /// <see cref="ArchitectureHardeningGuidelines.FindEmptyCatchBlocks"/>, excluding the
+        /// designated BackgroundRefreshErrorSink.cs swallow by file name. This assertion surfaces
+        /// (rather than hides) any real, non-whitelisted empty catch block — resolving one found
+        /// this way (log/record/rethrow, or add a reasoned, named exemption) is the coder's job, not
+        /// this guard's; see the QA report for the current finding.
+        /// </summary>
+        [Fact]
+        public void EmptyCatch_guard_flags_non_whitelisted_production_occurrences()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindEmptyCatchBlocks(new[]
+            {
+                ArchitectureHardeningGuidelines.ProductionSharedSourceRoot(),
+                ArchitectureHardeningGuidelines.ProductionPluginSourceRoot(),
+            });
+
+            Assert.True(
+                offenders.Count == 0,
+                "Empty (non-whitelisted) catch blocks found in production source:"
+                    + Environment.NewLine + "  " + string.Join(Environment.NewLine + "  ", offenders));
+        }
+
+        /// <summary>
+        /// ROT-proof: scoped ONLY to Architecture\Fixtures\ (never the real production tree, so this
+        /// scenario can never break due to real production code — "ohne gegen echten Code zu
+        /// brechen"). Fixtures.EmptyCatchFixture.cs contains a permanent, deliberately empty catch
+        /// block that this scan must catch.
+        /// </summary>
+        [Fact]
+        public void EmptyCatch_guard_catches_the_permanent_fixture()
+        {
+            var offenders = ArchitectureHardeningGuidelines.FindEmptyCatchBlocks(new[]
+            {
+                ArchitectureHardeningGuidelines.FixturesSourceRoot(),
+            });
+
+            Assert.Contains(offenders, o => o.Contains("EmptyCatchFixture.cs"));
         }
     }
 }

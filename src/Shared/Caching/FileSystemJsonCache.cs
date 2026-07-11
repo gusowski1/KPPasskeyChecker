@@ -94,7 +94,12 @@ namespace KeeRadar.Shared.Caching
         private static void TryDelete(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); }
-            catch { }
+            catch
+            {
+                // Best-effort delete: a failed removal (file locked, already gone, or missing
+                // permissions) leaves at most a stale cache file that the next Write/Read simply
+                // overwrites or ignores — not worth surfacing, so this is an intentional swallow.
+            }
         }
 
         private static string EscapeValue(string v)
