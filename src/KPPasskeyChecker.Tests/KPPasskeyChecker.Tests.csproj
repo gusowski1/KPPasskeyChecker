@@ -18,6 +18,10 @@
   <ItemGroup>
     <!-- All test packages PrivateAssets="all": this project never flows into a consumer and
          must never leak into the shipped .plgx/.dll. -->
+    <PackageReference Include="coverlet.collector" Version="6.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

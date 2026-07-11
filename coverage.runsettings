@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Coverlet coverage-collector configuration (report-only phase — see the KPPasskeyChecker.Tests
+  Coverage-Gate story). Kept in sync with the documented exemptions in
+  src\KPPasskeyChecker.Tests\Architecture\TestCoverageExemptions.cs by
+  src\KPPasskeyChecker.Tests\Architecture\CoverageExemptionSyncTests.cs — do not edit the
+  exclude filter list below without also updating TestCoverageExemptions.Entries (or vice
+  versa). Note for editors: the sync test locates this element via a raw-text regex, not an
+  XML parser, so this comment intentionally avoids spelling out the element's own tag name.
+
+  Usage: dotnet test KPPasskeyChecker.sln -settings coverage.runsettings -collect:"XPlat Code Coverage" (with the usual double-dash CLI flags).
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[KPPasskeyChecker]*</Include>
+          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KeePass]*,[xunit*]*</Exclude>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
