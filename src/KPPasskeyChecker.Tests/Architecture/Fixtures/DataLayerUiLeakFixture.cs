@@ -37,7 +37,7 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
         // Marker-Konstante, damit dieser Fixture-Zweck auch ohne den Klassenkommentar
         // oben unmissverstaendlich bleibt, falls die Datei isoliert betrachtet wird.
         public const string Purpose =
-            "TDD ROT-Nachweis fuer Guard 1 (Data.* darf nicht von UI/WinForms abhaengen).";
+            "Permanent RED-proof fixture: the Data layer must not depend on UI/WinForms.";
     }
 }
 

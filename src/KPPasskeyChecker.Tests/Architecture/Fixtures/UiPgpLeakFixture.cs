@@ -32,8 +32,8 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
         // Marker-Konstante, damit dieser Fixture-Zweck auch ohne den Klassenkommentar oben
         // unmissverstaendlich bleibt, falls die Datei isoliert betrachtet wird.
         public const string Purpose =
-            "TDD ROT-Nachweis fuer Guard 4 (UI darf nicht von rohen PGP-Interna abhaengen; " +
-            "PgpVerificationResult ist als Ergebnis-DTO ausgenommen).";
+            "Permanent RED-proof fixture: UI must not depend on raw PGP internals " +
+            "(PgpVerificationResult, the result DTO, is exempt).";
     }
 }
 
