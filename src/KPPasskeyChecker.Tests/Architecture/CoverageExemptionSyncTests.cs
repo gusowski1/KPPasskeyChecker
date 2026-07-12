@@ -21,14 +21,21 @@ namespace KPPasskeyChecker.Tests.Architecture
     ///
     /// Direction B: every exclude pattern that targets a specific type in the plugin assembly
     /// must correspond to a documented <see cref="TestCoverageExemptions.Entries"/> item — no
-    /// silent additional exclusions. Three kinds of pattern are whitelisted and never subject to
-    /// Direction B: (1) foreign-assembly patterns (e.g. "[KeePass]*", "[xunit*]*"), and (2)/(3) a
+    /// silent additional exclusions. Four kinds of pattern are whitelisted and never subject to
+    /// Direction B: (1) foreign-assembly patterns (e.g. "[KeePass]*", "[xunit*]*"), (2)/(3) a
     /// pattern whose named type resolves in the production assembly and is itself structurally
     /// exempt from the needs-tests guard via the Ext-suffix or Form-derivation rule (see
     /// <see cref="TestCoverageExemptions.IsEntrypointExt"/> /
     /// <see cref="TestCoverageExemptions.IsWinFormsFormDerivation"/>) — the coverage exclude is
     /// then justified by the SAME structural rule the needs-tests guard already enforces, rather
-    /// than a second, hardcoded per-class list (e.g. KPPasskeyCheckerExt, PasskeySettingsForm).
+    /// than a second, hardcoded per-class list (e.g. KPPasskeyCheckerExt, PasskeySettingsForm) —
+    /// and (4) the single literal wildcard pattern "[KPPasskeyChecker]*d__*", which matches every
+    /// C#-compiler-generated async/iterator state-machine nested type ("&lt;Method&gt;d__N") by
+    /// its Roslyn naming convention rather than by a specific type name; see the "*d__*" remarks
+    /// in coverage.runsettings for why this is a coverlet &lt;Exclude&gt; name-pattern rather
+    /// than a <see cref="TestCoverageExemptions.Entries"/> item (there is no single named type to
+    /// attach a reason to — it is a structural, compiler-artifact exclusion analogous to (1)-(3),
+    /// not a business-logic type opting out of testing).
     /// </summary>
     public class CoverageExemptionSyncTests
     {
@@ -114,11 +121,25 @@ namespace KPPasskeyChecker.Tests.Architecture
         }
 
         /// <summary>
-        /// True if <paramref name="pattern"/> names a type that resolves in the production
-        /// assembly AND is structurally exempt from the needs-tests guard via the Ext-suffix or
-        /// Form-derivation rule (see class remarks). A pattern whose type cannot be resolved, or
-        /// that resolves to a type covered by neither rule, is NOT structurally exempt and must
-        /// instead be a documented <see cref="TestCoverageExemptions.Entries"/> item.
+        /// The literal coverlet &lt;Exclude&gt; wildcard pattern that matches every
+        /// compiler-generated async/iterator state-machine nested type (e.g.
+        /// "DomainCandidateGenerator/&lt;LoadPslAsync&gt;d__6") by its Roslyn naming convention.
+        /// See the "*d__*" remarks in coverage.runsettings for the full rationale (why
+        /// &lt;ExcludeByAttribute&gt; was rejected and why a bracket-shaped pattern does not
+        /// match under the coverlet version used here).
+        /// </summary>
+        private const string CompilerGeneratedStateMachinePattern = "*d__*";
+
+        /// <summary>
+        /// True if <paramref name="pattern"/> is structurally exempt from Direction B — either
+        /// (a) it names a type that resolves in the production assembly AND is structurally
+        /// exempt from the needs-tests guard via the Ext-suffix or Form-derivation rule (see
+        /// class remarks), or (b) it is the single literal
+        /// <see cref="CompilerGeneratedStateMachinePattern"/> wildcard, which targets no specific
+        /// named type at all (it cannot be resolved via reflection) but is justified by the same
+        /// "compiler artifact, not business logic" reasoning as (a). A pattern that matches
+        /// neither is NOT structurally exempt and must instead be a documented
+        /// <see cref="TestCoverageExemptions.Entries"/> item.
         /// </summary>
         private static bool IsStructurallyExemptPattern(string pattern)
         {
@@ -129,6 +150,11 @@ namespace KPPasskeyChecker.Tests.Architecture
             }
 
             string typeFullName = pattern.Substring(prefix.Length);
+            if (typeFullName == CompilerGeneratedStateMachinePattern)
+            {
+                return true;
+            }
+
             Type type = ProductionAssembly.GetType(typeFullName);
             if (type == null)
             {

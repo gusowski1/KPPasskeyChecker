@@ -98,5 +98,16 @@ namespace KPPasskeyChecker.Tests.Shared.DomainMatching
                 new[] { "shop.example.co.uk", "example.co.uk", "co.uk" },
                 candidates);
         }
+
+        [Fact]
+        public void GetCandidates_yields_nothing_when_stripping_the_www_prefix_leaves_an_empty_host()
+        {
+            // "WWW." is not blank (IsNullOrWhiteSpace is false), but normalizing (trim + lowercase +
+            // strip the leading "www.") reduces it to an empty string, which must also yield nothing
+            // rather than proceeding to Split('.') on an empty host.
+            var candidates = DomainCandidateGenerator.GetCandidates("WWW.").ToList();
+
+            Assert.Empty(candidates);
+        }
     }
 }

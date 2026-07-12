@@ -123,6 +123,12 @@ namespace KPPasskeyChecker.Tests.UI
         }
 
         [Fact]
+        public void HasStoredPasskey_null_entry_returns_false()
+        {
+            Assert.False(PasskeyColumnProvider.HasStoredPasskey(null));
+        }
+
+        [Fact]
         public void HasStoredPasskey_no_fields_returns_false()
         {
             Assert.False(PasskeyColumnProvider.HasStoredPasskey(EntryWith()));

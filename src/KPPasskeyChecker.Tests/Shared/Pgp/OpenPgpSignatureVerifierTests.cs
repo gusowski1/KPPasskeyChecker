@@ -181,6 +181,254 @@ namespace KPPasskeyChecker.Tests.Shared.Pgp
             Assert.NotNull(result.Error);
         }
 
+        // --- fail-closed: malformed signature-packet fields (hand-built, no one-pass packet) --------
+
+        [Fact]
+        public void Verify_signature_packet_shorter_than_six_bytes_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 4, 0, 1, 10, 0 }; // one byte short of the minimum header
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("too short", result.Error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void Verify_signature_with_an_unsupported_version_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 3, 0, 1, 10, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Unsupported signature version", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_an_unexpected_signature_type_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 4, 5, 1, 10, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Unexpected signature type", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_an_unsupported_public_key_algorithm_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 4, 0, 99, 10, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Unsupported public-key algorithm", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_an_unsupported_hash_algorithm_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 4, 0, 1, 7, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Unsupported hash algorithm", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_a_hashed_subpacket_length_exceeding_the_packet_fails_closed()
+        {
+            // Declares 100 bytes of hashed subpackets that are never actually appended.
+            byte[] signatureBody = new byte[] { 4, 0, 1, 10, 0, 100 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Truncated hashed subpackets", result.Error, StringComparison.Ordinal);
+        }
+
+        // --- issuer key id resolution when no one-pass-signature packet is present ------------------
+        // These cover OpenPgpSignatureVerifier.FindIssuerKeyId / ScanSubpacketsForIssuer, which are
+        // only reached when the signed message carries no one-pass-signature packet (the real .sig
+        // fixture always does, so the success-path tests above never exercise this fallback).
+
+        [Fact]
+        public void Verify_signature_without_a_one_pass_packet_resolves_the_issuer_from_hashed_subpackets_and_fails_the_rsa_check()
+        {
+            byte[] hashedSubpackets = IssuerKeyIdSubpacket(DirectoryTrustAnchor.Key.KeyId);
+            byte[] signatureBody = SignaturePacketBodyReachingRsaCheck(10, hashedSubpackets, new byte[0]);
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("RSA signature does not match", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_without_a_one_pass_packet_resolves_the_issuer_from_unhashed_subpackets_and_rejects_a_mismatch()
+        {
+            byte[] unhashedSubpackets = IssuerKeyIdSubpacket("0000000000000000"); // deliberately wrong key id
+            byte[] signatureBody;
+            using (var stream = new MemoryStream())
+            {
+                stream.WriteByte(4);
+                stream.WriteByte(0x00);
+                stream.WriteByte(1);
+                stream.WriteByte(10);
+                WriteUInt16BE(stream, 0); // no hashed subpackets
+                WriteUInt16BE(stream, unhashedSubpackets.Length);
+                stream.Write(unhashedSubpackets, 0, unhashedSubpackets.Length);
+                // No trailer: VerifySignature returns on the issuer mismatch before it is ever read.
+                signatureBody = stream.ToArray();
+            }
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("does not match trusted key", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_no_resolvable_issuer_anywhere_still_reaches_the_rsa_check()
+        {
+            // One unrecognized-type (250) hashed subpacket; the scan walks over it and finds nothing,
+            // in both the hashed and (empty) unhashed regions, so the issuer check short-circuits.
+            byte[] hashedSubpackets = new byte[] { 4, 250, 0xAA, 0xBB, 0xCC };
+            byte[] signatureBody = SignaturePacketBodyReachingRsaCheck(10, hashedSubpackets, new byte[0]);
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("RSA signature does not match", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_a_two_byte_length_encoded_subpacket_is_skipped_before_finding_the_issuer()
+        {
+            // RFC 4880 4.2.2.2: a subpacket length in [192, 255) is encoded across two bytes. This one
+            // (first=192, second=0) declares a 192-byte body of an unrecognized type, which the scan
+            // must skip correctly before it reaches the real issuer subpacket that follows it.
+            byte[] paddingSubpacket = new byte[194];
+            paddingSubpacket[0] = 192;
+            paddingSubpacket[1] = 0;
+            paddingSubpacket[2] = 250; // unrecognized subpacket type
+            byte[] hashedSubpackets = Concat(paddingSubpacket, IssuerKeyIdSubpacket(DirectoryTrustAnchor.Key.KeyId));
+            byte[] signatureBody = SignaturePacketBodyReachingRsaCheck(10, hashedSubpackets, new byte[0]);
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("RSA signature does not match", result.Error, StringComparison.Ordinal);
+        }
+
+        // --- fail-closed: truncated signature MPI framing --------------------------------------------
+        // Each variant truncates the byte stream right before one of ReadSignatureMpi's three explicit
+        // length checks; none of these need a one-pass-signature packet because the (matching) hashed/
+        // unhashed subpacket regions are empty, so issuer resolution safely short-circuits first.
+
+        [Fact]
+        public void Verify_signature_missing_the_unhashed_subpacket_length_field_fails_closed()
+        {
+            byte[] signatureBody = new byte[] { 4, 0, 1, 10, 0, 0 }; // stops right after the (empty) hashed subpackets
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Truncated signature MPI", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_missing_the_hash_prefix_bytes_after_unhashed_subpackets_fails_closed()
+        {
+            // hashedLen=0, unhashedLen=4, four filler bytes, then nothing else.
+            byte[] signatureBody = new byte[] { 4, 0, 1, 10, 0, 0, 0, 4, 0, 0, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Truncated signature MPI", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_missing_the_mpi_bit_length_field_fails_closed()
+        {
+            // hashedLen=0, unhashedLen=0, two hash-prefix bytes, then nothing else.
+            byte[] signatureBody = new byte[] { 4, 0, 1, 10, 0, 0, 0, 0, 0, 0 };
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("Truncated signature MPI", result.Error, StringComparison.Ordinal);
+        }
+
+        // --- hash algorithm support ------------------------------------------------------------------
+        // The real fixture only ever exercises SHA-512 (hash algorithm id 10); these reach TryMapHash's
+        // other two supported cases and CreateHash's matching branches.
+
+        [Fact]
+        public void Verify_signature_with_the_SHA256_hash_algorithm_reaches_the_rsa_check()
+        {
+            byte[] signatureBody = SignaturePacketBodyReachingRsaCheck(8, new byte[0], new byte[0]);
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("RSA signature does not match", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_signature_with_the_SHA384_hash_algorithm_reaches_the_rsa_check()
+        {
+            byte[] signatureBody = SignaturePacketBodyReachingRsaCheck(9, new byte[0], new byte[0]);
+            byte[] message = Concat(LiteralDataPacket(SamplePayload()), OldFormatPacket(PacketTagSignature, signatureBody));
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("RSA signature does not match", result.Error, StringComparison.Ordinal);
+        }
+
+        // --- zlib-wrapped compression (algorithm 2) ---------------------------------------------------
+        // The real fixture always uses algorithm 1 (raw DEFLATE); this exercises the sibling
+        // algorithm-2 branch, which skips a 2-byte zlib header before the same raw-DEFLATE decoder.
+
+        [Fact]
+        public void Verify_a_zlib_wrapped_compressed_message_is_decompressed_without_throwing()
+        {
+            byte[] inner = LiteralDataPacket(SamplePayload());
+            byte[] deflated;
+            using (var compressed = new MemoryStream())
+            {
+                using (var deflate = new DeflateStream(compressed, CompressionMode.Compress, true))
+                    deflate.Write(inner, 0, inner.Length);
+                deflated = compressed.ToArray();
+            }
+            byte[] body = Concat(new byte[] { 2, 0x78, 0x9C }, deflated); // algorithm 2 (zlib); the header bytes are skipped
+            byte[] message = OldFormatPacket(PacketTagCompressedData, body);
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("signature packet", result.Error, StringComparison.OrdinalIgnoreCase);
+        }
+
         // --- helpers -------------------------------------------------------------------------------
 
         // Mirrors tools\SelfCheck\SelfCheck.cs fixture lookup: read next to the test binary
@@ -250,6 +498,108 @@ namespace KPPasskeyChecker.Tests.Shared.Pgp
             // second header byte's value is irrelevant to parsing (kept for header-shape clarity).
             Array.Copy(body, 0, message, 2, body.Length);
             return message;
+        }
+
+        // --- packet-construction helpers for the hand-built messages above -------------------------
+        // Mirrors the OpenPGP packet tags/framing rules OpenPgpSignatureVerifier and PgpPacketReader
+        // implement (RFC 4880 4.2/5.2/5.9), so the constructed byte arrays exercise the real parser.
+
+        private const int PacketTagSignature = 2;
+        private const int PacketTagCompressedData = 8;
+        private const int PacketTagLiteralData = 11;
+
+        private static byte[] SamplePayload()
+        {
+            return new byte[] { 0x01, 0x02, 0x03, 0x04 };
+        }
+
+        private static byte[] Concat(params byte[][] parts)
+        {
+            int total = parts.Sum(p => p.Length);
+            byte[] result = new byte[total];
+            int offset = 0;
+            foreach (byte[] part in parts)
+            {
+                Array.Copy(part, 0, result, offset, part.Length);
+                offset += part.Length;
+            }
+            return result;
+        }
+
+        private static void WriteUInt16BE(MemoryStream stream, int value)
+        {
+            stream.WriteByte((byte)((value >> 8) & 0xFF));
+            stream.WriteByte((byte)(value & 0xFF));
+        }
+
+        // Old-format packet header (RFC 4880 4.2.1), definite length (1- or 2-byte form — plenty for
+        // the small hand-built messages here).
+        private static byte[] OldFormatPacket(int tag, byte[] body)
+        {
+            if (body.Length <= 255)
+                return Concat(new byte[] { (byte)(0x80 | (tag << 2) | 0x00), (byte)body.Length }, body);
+
+            return Concat(
+                new byte[]
+                {
+                    (byte)(0x80 | (tag << 2) | 0x01),
+                    (byte)((body.Length >> 8) & 0xFF),
+                    (byte)(body.Length & 0xFF)
+                },
+                body);
+        }
+
+        // Literal Data packet body: format(1) fileNameLen(1) fileName(n) date(4) content(...) — no
+        // file name, zero modification date, since OpenPgpSignatureVerifier never inspects either.
+        private static byte[] LiteralDataPacket(byte[] content)
+        {
+            byte[] body = new byte[6 + content.Length];
+            body[0] = (byte)'b'; // binary data format
+            body[1] = 0;         // no file name
+            Array.Copy(content, 0, body, 6, content.Length);
+            return OldFormatPacket(PacketTagLiteralData, body);
+        }
+
+        // A single Issuer Key ID subpacket (RFC 4880 5.2.3.5, type 16): one-byte length (9 = type +
+        // 8-byte key id) followed by the type byte and the 8-byte key id itself.
+        private static byte[] IssuerKeyIdSubpacket(string keyIdHex)
+        {
+            byte[] keyId = HexToBytes(keyIdHex);
+            byte[] subpacket = new byte[1 + 1 + 8];
+            subpacket[0] = 9;
+            subpacket[1] = 16;
+            Array.Copy(keyId, 0, subpacket, 2, 8);
+            return subpacket;
+        }
+
+        // Builds a v4 signature packet body with a full, well-formed trailer (hash-prefix bytes, MPI
+        // bit length, an MPI value sized to the trusted key's modulus) so verification runs all the way
+        // to the RSA check. The MPI value is deliberately not a real signature (a tiny numeric value,
+        // guaranteed smaller than the modulus so RSA.VerifyHash returns false instead of throwing), so
+        // these messages always land on OpenPgpSignatureVerifier's "RSA signature does not match"
+        // branch without needing the real private key.
+        private static byte[] SignaturePacketBodyReachingRsaCheck(byte hashAlgo, byte[] hashedSubpackets, byte[] unhashedSubpackets)
+        {
+            int modulusLength = DirectoryTrustAnchor.Key.Modulus.Length;
+            byte[] mpiValue = new byte[modulusLength];
+            mpiValue[modulusLength - 1] = 0x07;
+
+            using (var stream = new MemoryStream())
+            {
+                stream.WriteByte(4);    // version
+                stream.WriteByte(0x00); // signature type: binary document
+                stream.WriteByte(1);    // public-key algorithm: RSA
+                stream.WriteByte(hashAlgo);
+                WriteUInt16BE(stream, hashedSubpackets.Length);
+                stream.Write(hashedSubpackets, 0, hashedSubpackets.Length);
+                WriteUInt16BE(stream, unhashedSubpackets.Length);
+                stream.Write(unhashedSubpackets, 0, unhashedSubpackets.Length);
+                stream.WriteByte(0);
+                stream.WriteByte(0); // left 16 bits of the hash (not checked by the verifier)
+                WriteUInt16BE(stream, modulusLength * 8);
+                stream.Write(mpiValue, 0, mpiValue.Length);
+                return stream.ToArray();
+            }
         }
     }
 }
