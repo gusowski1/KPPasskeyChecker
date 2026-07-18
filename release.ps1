@@ -187,6 +187,36 @@ function Invoke-Build {
     if ($LASTEXITCODE -ne 0) { throw "build.ps1 failed (exit $LASTEXITCODE)." }
 }
 
+function Invoke-CoverageGate {
+    # Per-class coverage gate (release-only; the pre-commit hook stays a plain 'dotnet test'
+    # for fast feedback -- this is the authoritative gate before Prepare/Publish). Thresholds
+    # are calibrated below the measured per-class floor with margin (see coverage.runsettings /
+    # TestCoverageExemptions.Entries for the documented exemptions this report already reflects).
+    param([string]$StageName)
+
+    Write-Host "==> Running coverage gate (per-class line/branch thresholds)" -ForegroundColor Cyan
+    $resultsDir = Join-Path $RepoRoot 'TestResults'
+    if (Test-Path $resultsDir) { Remove-Item $resultsDir -Recurse -Force }
+
+    & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo `
+        --settings (Join-Path $RepoRoot 'coverage.runsettings') `
+        --collect:"XPlat Code Coverage" `
+        --results-directory $resultsDir
+    if ($LASTEXITCODE -ne 0) { throw "Coverage collection run failed. Fix the code and re-run $StageName." }
+
+    $report = Get-ChildItem -Path $resultsDir -Filter 'coverage.cobertura.xml' -Recurse |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $report) { throw "No coverage.cobertura.xml produced under $resultsDir." }
+
+    $gateScript = Join-Path $RepoRoot 'tools\coverage-gate.ps1'
+    if (-not (Test-Path $gateScript)) { throw "coverage-gate.ps1 not found at $gateScript." }
+
+    & $gateScript -ReportPath $report.FullName -LineThreshold 55 -BranchThreshold 60
+    if ($LASTEXITCODE -ne 0) { throw "Coverage gate failed. Raise coverage on the reported class(es) and re-run $StageName." }
+    Write-Host "  Coverage gate passed." -ForegroundColor Green
+    Write-Host ""
+}
+
 function Get-Assets {
     param([string]$pluginName)
     $buildDir = Join-Path $RepoRoot 'build'
@@ -337,6 +367,9 @@ switch ($Stage) {
         Write-Host "  xUnit tests passed." -ForegroundColor Green
         Write-Host ""
 
+        # Per-class coverage gate: mandatory (release-only; pre-commit stays a plain 'dotnet test').
+        Invoke-CoverageGate 'Prepare'
+
         # Resumability checks: skip steps already completed.
         $alreadyBumped = ($current -eq $Version)
         $remoteOutput  = (git ls-remote --heads origin $branch 2>&1) -join ''
@@ -436,6 +469,9 @@ switch ($Stage) {
         if ($LASTEXITCODE -ne 0) { throw "xUnit tests failed. Fix the code and re-run Publish." }
         Write-Host "  xUnit tests passed." -ForegroundColor Green
         Write-Host ""
+
+        # Per-class coverage gate: mandatory (release-only; pre-commit stays a plain 'dotnet test').
+        Invoke-CoverageGate 'Publish'
 
         Invoke-Build
         $assets    = Get-Assets $plugin

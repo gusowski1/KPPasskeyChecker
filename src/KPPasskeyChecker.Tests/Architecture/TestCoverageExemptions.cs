@@ -63,6 +63,16 @@ namespace KPPasskeyChecker.Tests.Architecture
                     "pull in the exempted HTTP transport; its own logic is thin property-mapping, " +
                     "and the fetch/verify path is covered by the committed .sig fixture."
                 ),
+                (
+                    "KeeRadar.Shared.DomainMatching.DomainCandidateGenerator",
+                    "InitializeAsync/LoadPslAsync run a fire-and-forget PSL lifecycle " +
+                    "(Task.Run over a static field) with no injection seam — same category as " +
+                    "the HTTP-transport exemptions above. The class-level per-test coverage " +
+                    "gate would otherwise be dragged down by this untestable background " +
+                    "loader alone: the domain-matching logic that IS unit-testable " +
+                    "(GetCandidates/NormalizeHost) is fully covered by " +
+                    "DomainCandidateGeneratorTests."
+                ),
             };
 
         /// <summary>

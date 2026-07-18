@@ -53,7 +53,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Include>[KPPasskeyChecker]*</Include>
-          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KPPasskeyChecker]KPPasskeyChecker.KPPasskeyCheckerExt,[KPPasskeyChecker]KPPasskeyChecker.Settings.PasskeySettingsForm,[KeePass]*,[xunit*]*,[KPPasskeyChecker]*d__*</Exclude>
+          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KPPasskeyChecker]KeeRadar.Shared.DomainMatching.DomainCandidateGenerator,[KPPasskeyChecker]KPPasskeyChecker.KPPasskeyCheckerExt,[KPPasskeyChecker]KPPasskeyChecker.Settings.PasskeySettingsForm,[KeePass]*,[xunit*]*,[KPPasskeyChecker]*d__*</Exclude>
           <IncludeTestAssembly>false</IncludeTestAssembly>
         </Configuration>
       </DataCollector>
