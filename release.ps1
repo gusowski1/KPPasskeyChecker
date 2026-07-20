@@ -11,17 +11,24 @@
       1. Create the release branch from main:
              git switch -c release/vX.Y.Z
       2. Develop on the branch -- one commit per completed feature.
-      3. release.ps1 -Version X.Y.Z -Stage Prepare
-         Generates a CHANGELOG section from branch commits, bumps the three version
-         files, commits everything (working-tree changes + bump), pushes the branch
-         and opens a PR against main. No build -- Publish always rebuilds from main.
-      4. Review / edit CHANGELOG.md if needed, then merge the PR on GitHub.
-      5. release.ps1 -Version X.Y.Z -Stage Publish
+      3. release.ps1 -Version X.Y.Z -Stage Preview
+         Writes the proposed CHANGELOG section for X.Y.Z to CHANGELOG.md (uncommitted)
+         and shows the version-bump plan. Review / edit the section now -- this is the
+         approval gate for the release notes.
+      4. release.ps1 -Version X.Y.Z -Stage Prepare
+         Bumps the three version files, commits everything (working-tree changes + bump,
+         including the reviewed CHANGELOG), pushes the branch and opens a PR against main.
+         No build -- Publish always rebuilds from main.
+      5. Merge the PR on GitHub.
+      6. release.ps1 -Version X.Y.Z -Stage Publish
          Checks out main, pulls, builds, creates the GitHub release.
 
     Stages:
-      Preview  (default)   Show the branch commits (future CHANGELOG entries) and the
-                           version-bump plan. Changes nothing.
+      Preview  (default)   Show the branch commits and the version-bump plan, and write the
+                           proposed CHANGELOG section for -Version to CHANGELOG.md
+                           (uncommitted) so it can be reviewed/edited before Prepare commits
+                           it. Commits, pushes and releases nothing; an existing section for
+                           that version is never overwritten (re-running Preview is safe).
       Prepare              Generate/update CHANGELOG.md, bump version files, commit,
                            push branch, open PR.
                            RESUMABLE: if the version is already bumped and the branch
@@ -287,7 +294,8 @@ function Invoke-EnsurePr([string]$gh, [string]$branch, [string]$ver, [string]$no
 $info    = Get-PluginInfo
 $plugin  = $info.Name
 $current = $info.Version
-if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $current }
+$versionSpecified = -not [string]::IsNullOrWhiteSpace($Version)
+if (-not $versionSpecified) { $Version = $current }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "-Version must be x.y.z (got '$Version')." }
 
 $tag    = "v$Version"
@@ -306,6 +314,36 @@ switch ($Stage) {
             Write-Host "  (no commits on this branch yet)" -ForegroundColor DarkGray
         } else {
             $commits | ForEach-Object { Write-Host "  $_" }
+        }
+
+        # Write the proposed CHANGELOG section now (uncommitted) so it can be reviewed and edited
+        # BEFORE Prepare commits it -- Preview is the approval gate. An existing section is never
+        # overwritten, so re-running Preview is safe and manual edits survive. Requires an explicit
+        # -Version: without it $Version is just the current (already released) version.
+        $draftWritten = $false
+        if ($versionSpecified) {
+            $changelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
+            $changelogHasSection = (Test-Path $changelogPath) -and
+                ((Get-Content $changelogPath) -match ('^##\s*\[' + [regex]::Escape($Version) + '\]'))
+
+            Write-Host ""
+            Write-Host "CHANGELOG:" -ForegroundColor White
+            if ($changelogHasSection) {
+                Write-Host ("  ## [{0}] already exists -- left untouched. Edit it if needed:" -f $Version) -ForegroundColor DarkGray
+                Write-Host ("  {0}" -f $changelogPath)
+            } else {
+                $draftCommits = $commits
+                if ($draftCommits.Count -eq 0) { $draftCommits = @("- (no feature commits found on branch)") }
+                $draftText = Format-ChangelogSection $Version $draftCommits
+                Set-ChangelogSection $Version $draftText
+                $draftWritten = $true
+
+                Write-Host ("  Draft ## [{0}] written to CHANGELOG.md (uncommitted) -- review / edit it now:" -f $Version) -ForegroundColor Yellow
+                Write-Host ("  {0}" -f $changelogPath)
+                Write-Host "  Discard the draft with: git checkout -- CHANGELOG.md" -ForegroundColor DarkGray
+                Write-Host ""
+                ($draftText -split "`n") | ForEach-Object { Write-Host "  | $_" }
+            }
         }
 
         Write-Host ""
@@ -329,7 +367,7 @@ switch ($Stage) {
 
         Write-Host ""
         Write-Host "Plan (Prepare):" -ForegroundColor White
-        Write-Host "  1. Generate CHANGELOG.md ## [$Version] from branch commits (edit before confirming)"
+        Write-Host "  1. Use the CHANGELOG.md ## [$Version] section (written here in Preview; generated in Prepare only if still missing)"
         Write-Host "  2. Bump version files ($current -> $Version)"
         Write-Host "  3. git add -A && git commit -m 'Release $Version'"
         Write-Host "  4. git push -u origin $branch"
@@ -338,7 +376,11 @@ switch ($Stage) {
         Write-Host "Plan (Publish, after PR merge):" -ForegroundColor White
         Write-Host ("  Build from main, create GitHub release {0} ({1}) with .plgx + .dll" -f $tag, $Type)
         Write-Host ""
-        Write-Host "Nothing changed. Re-run with -Stage Prepare when development is complete." -ForegroundColor Green
+        if ($draftWritten) {
+            Write-Host "Nothing committed, pushed or released. Review / edit the CHANGELOG draft, then re-run with -Stage Prepare." -ForegroundColor Green
+        } else {
+            Write-Host "Nothing changed. Re-run with -Stage Prepare when development is complete." -ForegroundColor Green
+        }
     }
 
     'Prepare' {
