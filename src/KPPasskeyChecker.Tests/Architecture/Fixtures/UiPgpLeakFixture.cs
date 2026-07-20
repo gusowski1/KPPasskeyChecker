@@ -3,34 +3,29 @@ using KeeRadar.Shared.Pgp;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Guard 4: UI &#8869; rohe PGP-Interna).
+    /// Permanent RED-proof fixture for the UI-to-raw-PGP isolation guard.
     ///
-    /// Diese Klasse liegt AUSSCHLIESSLICH im Testprojekt fuer
-    /// <see cref="ArchitectureHardeningGuidelinesTests.Guard4_ui_pgp_isolation_test_catches_ui_to_raw_pgp_violation"/>
-    /// und wird NIE in KPPasskeyChecker.dll/.plgx geshippt (liegt im Testprojekt, nicht unter
+    /// It lives exclusively in the test project, backing
+    /// <see cref="ArchitectureHardeningGuidelinesTests.Guard4_ui_pgp_isolation_test_catches_ui_to_raw_pgp_violation"/>,
+    /// and is never shipped in KPPasskeyChecker.dll/.plgx (it sits in the test project, not under
     /// src\KPPasskeyChecker\UI\).
     ///
-    /// Simuliert absichtlich eine Verletzung der Isolationsgrenze "UI (KPPasskeyChecker.UI.* UND
-    /// KeeRadar.Shared.KeePassUi.*) darf nicht von den rohen PGP-Interna
-    /// (OpenPgpSignatureVerifier / PgpPacketReader / OpenPgpRsaPublicKey aus KeeRadar.Shared.Pgp)
-    /// abhaengen — nur das Ergebnis-DTO PgpVerificationResult ist erlaubt": referenziert
-    /// OpenPgpSignatureVerifier direkt aus einem simulierten Plugin-UI-Namespace.
+    /// It deliberately violates the boundary "UI (KPPasskeyChecker.UI.* and
+    /// KeeRadar.Shared.KeePassUi.*) must not depend on the raw PGP internals
+    /// (OpenPgpSignatureVerifier / PgpPacketReader / OpenPgpRsaPublicKey from KeeRadar.Shared.Pgp);
+    /// only the result DTO PgpVerificationResult is allowed" by referencing
+    /// OpenPgpSignatureVerifier from a simulated plugin UI namespace.
     ///
-    /// WICHTIG fuer den coder (GREEN-Schritt): identisches Muster wie
-    /// Fixtures\DataLayerUiLeakFixture.cs (Guard 1) — diese Fixture deklariert sich absichtlich im
-    /// PRODUCTION-Namespace "KPPasskeyChecker.UI" (siehe Namespace-Deklaration unten: die Klasse
-    /// liegt physisch im Testprojekt, deklariert sich aber in den Namespace
-    /// "KPPasskeyChecker.UI" hinein), damit der neue Guard 4
-    /// (ResideInNamespaceMatching("^KPPasskeyChecker\.UI") .Or()
-    /// ResideInNamespaceMatching("^KeeRadar\.Shared\.KeePassUi")) ohne Sonderfall-Logik zuschlaegt,
-    /// sobald die Architecture zusaetzlich aus der Testassembly geladen wird
-    /// (ArchitectureHardeningGuidelines.ProductionAndTestArchitecture, identisches Zwei-Architecture-
-    /// Muster wie bei den Guards 1 und 3a).
+    /// Same pattern as Fixtures\DataLayerUiLeakFixture.cs: the type below deliberately declares
+    /// itself into the production namespace "KPPasskeyChecker.UI" (it is physically part of the
+    /// test project) so that the guard filter matches it without any special-case logic, once the
+    /// architecture is also loaded from the test assembly
+    /// (ArchitectureHardeningGuidelines.ProductionAndTestArchitecture).
     /// </summary>
     public static class UiPgpLeakFixtureMarker
     {
-        // Marker-Konstante, damit dieser Fixture-Zweck auch ohne den Klassenkommentar oben
-        // unmissverstaendlich bleibt, falls die Datei isoliert betrachtet wird.
+        // Marker constant so the fixture's purpose stays unambiguous even when the file is read in
+        // isolation, without the documentation above.
         public const string Purpose =
             "Permanent RED-proof fixture: UI must not depend on raw PGP internals " +
             "(PgpVerificationResult, the result DTO, is exempt).";
@@ -39,22 +34,20 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 
 namespace KPPasskeyChecker.UI
 {
-    // ACHTUNG: Dieser Namespace-Block liegt physisch in der Testprojekt-Datei
-    // Architecture\Fixtures\UiPgpLeakFixture.cs (KPPasskeyChecker.Tests), NICHT unter
-    // src\KPPasskeyChecker\UI\. Er wird daher NIE Teil von KPPasskeyChecker.dll/.plgx (siehe
-    // Klassendoku oben). Die absichtliche Namespace-Wahl "KPPasskeyChecker.UI" ist noetig, damit
-    // Guard 4 (ResideInNamespaceMatching("^KPPasskeyChecker\.UI")) diese Fixture ueberhaupt in
-    // seinen Pruefbereich aufnimmt, sobald der coder die Architecture zusaetzlich aus der
-    // Testassembly laedt (siehe UiPgpLeakFixtureMarker-Doku).
+    // NOTE: this namespace block physically lives in the test-project file
+    // Architecture\Fixtures\UiPgpLeakFixture.cs (KPPasskeyChecker.Tests), NOT under
+    // src\KPPasskeyChecker\UI\. It therefore never becomes part of KPPasskeyChecker.dll/.plgx
+    // (see the type documentation above). The deliberate "KPPasskeyChecker.UI" namespace is what
+    // brings this fixture into the guard's scope once the architecture is also loaded from the
+    // test assembly.
     internal sealed class RogueUiPgpConsumer
     {
-        // Verletzung: direkte Abhaengigkeit von einem rohen PGP-Interna-Typ
-        // (KeeRadar.Shared.Pgp.OpenPgpSignatureVerifier) aus einem UI-Typ. PgpVerificationResult
-        // (das Ergebnis-DTO) waere erlaubt gewesen -- diese Fixture nutzt bewusst den verbotenen
-        // Verifier-Typ, nicht das DTO.
-        // CS0649 ist absichtlich unterdrueckt: der Guard prueft den DEKLARIERTEN TYP des Feldes
-        // (die Typ-Abhaengigkeit), nicht seinen Laufzeitwert -- das Feld bleibt daher bewusst
-        // unzugewiesen.
+        // Violation: a direct dependency on a raw PGP internals type
+        // (KeeRadar.Shared.Pgp.OpenPgpSignatureVerifier) from a UI type. PgpVerificationResult
+        // (the result DTO) would have been allowed — this fixture deliberately uses the forbidden
+        // verifier type instead of the DTO.
+        // CS0649 is suppressed deliberately: the guard inspects the field's DECLARED TYPE (the
+        // type dependency), not its runtime value, so the field is intentionally left unassigned.
 #pragma warning disable CS0649
         public OpenPgpSignatureVerifier RogueVerifierReference;
 #pragma warning restore CS0649

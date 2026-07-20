@@ -23,8 +23,6 @@ using System.Security.Cryptography;
 /// outside the KPPasskeyChecker.* / KeeRadar.Shared.* namespaces so the xUnit needs-tests guard
 /// (ArchitectureGuidelinesTests.IsInScope) never requires a production-class test pairing for it
 /// — it is test/tooling infrastructure, not shipped runtime surface.
-///
-/// Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1 ("Shared-Drift-Guard").
 /// </summary>
 internal static class SharedTreeComparer
 {

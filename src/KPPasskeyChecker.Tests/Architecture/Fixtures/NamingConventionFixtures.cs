@@ -3,15 +3,15 @@ using System.Windows.Forms;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Guard 3a: Interface-Namen muessen mit "I" beginnen).
+    /// Permanent RED-proof fixture for the interface-naming guard (interface names must start
+    /// with "I").
     ///
-    /// Nur im Testprojekt; nie geshippt. Verwendet fuer
+    /// Test project only; never shipped. Backs
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard3a_interface_naming_test_catches_missing_I_prefix"/>.
     ///
-    /// WICHTIG fuer den coder: Guard 3a ist reines ArchUnitNET-Fluent
-    /// (<c>Interfaces().Should().HaveNameStartingWith("I")</c>). Wie bei Guard 1 muss die dafuer
-    /// geladene Architecture die Testassembly mit einschliessen, damit dieses Interface ueberhaupt
-    /// evaluiert wird.
+    /// The guard is plain ArchUnitNET fluent syntax
+    /// (<c>Interfaces().Should().HaveNameStartingWith("I")</c>), so the architecture it runs
+    /// against has to include the test assembly for this interface to be evaluated at all.
     /// </summary>
     public interface RogueInterfaceWithoutIPrefix
     {
@@ -19,19 +19,19 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
     }
 
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Guard 3b: echte <see cref="Form"/>-Ableitungen muessen auf
-    /// "Form" enden).
+    /// Permanent RED-proof fixture for the form-naming guard (real <see cref="Form"/> derivations
+    /// must end in "Form").
     ///
-    /// Nur im Testprojekt; nie geshippt. Verwendet fuer
+    /// Test project only; never shipped. Backs
     /// <see cref="ArchitectureHardeningGuidelinesTests.Guard3b_form_suffix_test_catches_real_Form_without_suffix"/>.
     ///
-    /// Eine ECHTE <see cref="System.Windows.Forms.Form"/>-Ableitung, deren Name absichtlich NICHT
-    /// auf "Form" endet (Basistyp-Verletzung, nicht Namespace-Verletzung — vgl. Assessment RF1:
-    /// die Regel prueft den Basistyp, nicht ob die Klasse in ".UI." liegt).
+    /// A REAL <see cref="System.Windows.Forms.Form"/> derivation whose name deliberately does not
+    /// end in "Form". This is a base-type violation, not a namespace violation: the rule checks
+    /// the base type, not whether the class sits in ".UI.".
     ///
-    /// WICHTIG fuer den coder: Guard 3b arbeitet ueber Reflection
-    /// (<c>typeof(Form).IsAssignableFrom(t) &amp;&amp; !t.Name.EndsWith("Form")</c>), analog zu
-    /// Guard 2 muss der Scan die Testassembly einschliessen, damit dieser Typ erfasst wird.
+    /// The guard works through reflection
+    /// (<c>typeof(Form).IsAssignableFrom(t) &amp;&amp; !t.Name.EndsWith("Form")</c>), so the scan
+    /// has to include the test assembly for this type to be picked up.
     /// </summary>
     public sealed class RogueDialogWithoutFormSuffix : Form
     {

@@ -3,18 +3,19 @@ using System;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (empty-catch guard: leere catch-Bloecke im Produktivcode).
+    /// Permanent RED-proof fixture for the empty-catch guard (undocumented empty catch blocks in
+    /// production code).
     ///
-    /// Diese Datei liegt AUSSCHLIESSLICH im Testprojekt unter Architecture\Fixtures\ und wird NIE
-    /// in KPPasskeyChecker.dll/.plgx geshippt. Anders als die uebrigen Fixtures in diesem Ordner
-    /// wird sie nicht per Reflection/ArchUnitNET erfasst, sondern per Quelltext-Scan: empty-catch guard ist
-    /// ein reiner Text-Scan (leere catch-Bloecke sind IL-Konstrukte, nicht in Metadaten sichtbar,
-    /// siehe <see cref="ArchitectureHardeningGuidelines.FindEmptyCatchBlocks"/>). Der ROT-Nachweis
-    /// laeuft daher gegen einen Scan, der NUR auf diesen Fixtures-Ordner zeigt (nie gegen den
-    /// echten Produktiv-Quellbaum), damit er unabhaengig vom aktuellen Zustand des echten
-    /// Produktivcodes zuverlaessig zuschlaegt (kein Bruch gegen echten Code).
+    /// It lives exclusively in the test project under Architecture\Fixtures\ and is never shipped
+    /// in KPPasskeyChecker.dll/.plgx. Unlike the other fixtures in this folder it is not picked up
+    /// through reflection/ArchUnitNET but through a source-text scan: an empty catch block is an
+    /// IL construct and is not visible in metadata (see
+    /// <see cref="ArchitectureHardeningGuidelines.FindEmptyCatchBlocks"/>). The RED proof
+    /// therefore runs against a scan pointed only at this fixtures folder — never at the real
+    /// production source tree — so that it fires reliably regardless of the current state of the
+    /// production code.
     ///
-    /// Enthaelt genau einen leeren catch-Block (kein Code, kein Kommentar) als Verletzung.
+    /// Contains exactly one empty catch block (no code, no comment) as the violation.
     /// </summary>
     internal sealed class RogueEmptyCatchType
     {

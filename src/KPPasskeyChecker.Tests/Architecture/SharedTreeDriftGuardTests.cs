@@ -6,15 +6,15 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Architecture
 {
     /// <summary>
-    /// Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1 ("Shared-Drift-Guard").
+    /// Shared-tree drift guard.
     ///
     /// Defines the target behaviour for a byte-/hash-comparison guard between the two copies of
     /// <c>src\Shared</c> (canonical in KPPasskeyChecker, mirrored verbatim into KP2FAChecker via
     /// <c>sync-shared.ps1</c>): the guard must FAIL when the two trees diverge.
     ///
-    /// <b>Split responsibility (per the task's instruction to clarify SelfCheck-vs-xUnit scope):</b>
+    /// <b>Split responsibility between SelfCheck and xUnit:</b>
     /// the actual release-blocking guard belongs in the SDK-free <c>tools\SelfCheck</c> (csc)
-    /// mandatory gate (per <c>local_agents.md</c>, SelfCheck is the only QA gate) — it is the one
+    /// mandatory gate — it is the one
     /// that must run before every release and cross-checks the REAL two repo trees
     /// (<c>KPPasskeyChecker\src\Shared</c> vs. the sibling repo's <c>KP2FAChecker\src\Shared</c> on
     /// disk). This xUnit test does NOT attempt to invoke or duplicate that release gate (it must
@@ -22,8 +22,8 @@ namespace KPPasskeyChecker.Tests.Architecture
     /// environment-dependent path). Instead, this test defines and pins the pure COMPARISON /
     /// DETECTION logic — the algorithm that both the SelfCheck guard and this test exercise
     /// against a synthetic, self-contained fixture (two small temp directory trees created and
-    /// torn down entirely inside the test). That logic is what the coder must extract into a
-    /// small, dependency-free type (<c>SharedTreeComparer</c>, BCL-only: <c>System.IO</c> +
+    /// torn down entirely inside the test). That logic lives in a small, dependency-free type
+    /// (<c>SharedTreeComparer</c>, BCL-only: <c>System.IO</c> +
     /// <c>System.Security.Cryptography</c>) so it compiles unchanged under csc /langversion:5
     /// AND is unit-testable here — one algorithm, two call sites (SelfCheck for the release gate,
     /// this test for the regression pin on the comparison behaviour itself).

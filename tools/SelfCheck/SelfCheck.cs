@@ -83,15 +83,14 @@ namespace KPPasskeyChecker.SelfCheck
             return OpenPgpRsaPublicKey.FromCertRecord(rdata);
         }
 
-        // --- Shared-tree drift guard (Architecture-Assessment 2026-07-02, Achse 1 / Rangliste #1) -
+        // --- Shared-tree drift guard -------------------------------------------------------------
         // Release-blocking gate: compares the REAL two repo trees on disk. KPPasskeyChecker\src\Shared
         // is canonical; KP2FAChecker\src\Shared must be byte-identical (kept in sync via
         // sync-shared.ps1). FAILs (non-empty divergence list) when the sibling repo's copy has
         // drifted. The pure comparison/detection algorithm itself (SharedTreeComparer) is pinned by
         // a synthetic-fixture xUnit regression test (Architecture\SharedTreeDriftGuardTests.cs); this
         // check exercises it against the actual on-disk trees, which is why it stays in the SDK-free
-        // SelfCheck harness rather than in the xUnit project (per local_agents.md, SelfCheck is the
-        // mandatory release gate).
+        // SelfCheck harness rather than in the xUnit project (it must stay SDK-free).
         private static void CheckSharedTreeNotDiverged()
         {
             Section("Shared-tree drift guard (KPPasskeyChecker vs KP2FAChecker)");

@@ -3,23 +3,23 @@ using System.Net.Http;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (HttpClient-encapsulation guard — Nicht-Transport-Produktivtypen
-    /// duerfen nicht direkt von <see cref="System.Net.Http.HttpClient"/> abhaengen).
+    /// Permanent RED-proof fixture for the HttpClient-encapsulation guard (production types
+    /// outside the transport set must not depend directly on
+    /// <see cref="System.Net.Http.HttpClient"/>).
     ///
-    /// Diese Klasse liegt AUSSCHLIESSLICH im Testprojekt fuer
-    /// <see cref="ArchitectureHardeningGuidelinesTests.HttpClient_test_catches_non_transport_violation"/>
-    /// und wird NIE in KPPasskeyChecker.dll/.plgx geshippt (liegt im Testprojekt, nicht unter
+    /// It lives exclusively in the test project, backing
+    /// <see cref="ArchitectureHardeningGuidelinesTests.HttpClient_test_catches_non_transport_violation"/>,
+    /// and is never shipped in KPPasskeyChecker.dll/.plgx (it sits in the test project, not under
     /// src\KPPasskeyChecker\UI\).
     ///
-    /// Simuliert absichtlich eine Verletzung von HttpClient-encapsulation guard: referenziert <c>HttpClient</c> direkt aus
-    /// einem produktiv-aussehenden, NICHT zur Transport-Menge gehoerenden Namespace heraus.
+    /// It deliberately violates the guard by referencing <c>HttpClient</c> from a
+    /// production-looking namespace that is not part of the transport set.
     ///
-    /// WICHTIG: identisches Muster wie Fixtures\UiPgpLeakFixture.cs (Guard 4) — diese Fixture
-    /// deklariert sich absichtlich im PRODUCTION-Namespace "KPPasskeyChecker.UI" (siehe
-    /// Namespace-Deklaration unten: die Klasse liegt physisch im Testprojekt, deklariert sich aber
-    /// in den Namespace "KPPasskeyChecker.UI" hinein), damit HttpClient-encapsulation guards Produktiv-Namespace-Filter
-    /// diese Fixture ueberhaupt in seinen Pruefbereich aufnimmt, sobald die Architecture zusaetzlich
-    /// aus der Testassembly geladen wird (ArchitectureHardeningGuidelines.ProductionAndTestArchitecture).
+    /// Same pattern as Fixtures\UiPgpLeakFixture.cs: the type below deliberately declares itself
+    /// into the production namespace "KPPasskeyChecker.UI" (it is physically part of the test
+    /// project) so that the guard's production-namespace filter picks it up once the architecture
+    /// is also loaded from the test assembly
+    /// (ArchitectureHardeningGuidelines.ProductionAndTestArchitecture).
     /// </summary>
     public static class HttpClientLeakFixtureMarker
     {
@@ -30,17 +30,17 @@ namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 
 namespace KPPasskeyChecker.UI
 {
-    // ACHTUNG: dieser Namespace-Block liegt physisch in der Testprojekt-Datei
-    // Architecture\Fixtures\HttpClientLeakFixture.cs (KPPasskeyChecker.Tests), NICHT unter
-    // src\KPPasskeyChecker\UI\. Er wird daher NIE Teil von KPPasskeyChecker.dll/.plgx (siehe
-    // Klassendoku oben). "KPPasskeyChecker.UI" ist nicht Mitglied der Transport-Menge (nur
-    // KPPasskeyChecker.Data.PasskeyApiClient, KeeRadar.Shared.Http.ConditionalHttpFetcher und
-    // KeeRadar.Shared.DomainMatching.DomainCandidateGenerator sind es), also ist diese Verletzung
-    // real fuer HttpClient-encapsulation guard.
+    // NOTE: this namespace block physically lives in the test-project file
+    // Architecture\Fixtures\HttpClientLeakFixture.cs (KPPasskeyChecker.Tests), NOT under
+    // src\KPPasskeyChecker\UI\. It therefore never becomes part of KPPasskeyChecker.dll/.plgx
+    // (see the type documentation above). "KPPasskeyChecker.UI" is not a member of the transport
+    // set — only KPPasskeyChecker.Data.PasskeyApiClient, KeeRadar.Shared.Http.ConditionalHttpFetcher
+    // and KeeRadar.Shared.DomainMatching.DomainCandidateGenerator are — so this really is a
+    // violation of the guard.
     internal sealed class RogueHttpClientLeakType
     {
-        // Verletzung: direkte Abhaengigkeit von System.Net.Http.HttpClient ausserhalb der
-        // Transport-Menge.
+        // Violation: a direct dependency on System.Net.Http.HttpClient from outside the transport
+        // set.
         public object MakeRogueHttpClient()
         {
             return new HttpClient();

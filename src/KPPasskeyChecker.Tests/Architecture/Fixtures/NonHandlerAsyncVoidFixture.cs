@@ -3,38 +3,33 @@ using System.Threading.Tasks;
 namespace KPPasskeyChecker.Tests.Architecture.Fixtures
 {
     /// <summary>
-    /// RED-NACHWEIS-FIXTURE (Guard 2: Nicht-Handler-<c>async void</c> verbieten).
+    /// Permanent RED-proof fixture for the guard that forbids non-handler <c>async void</c>.
     ///
-    /// Diese Klasse liegt AUSSCHLIESSLICH im Testprojekt fuer
-    /// <see cref="ArchitectureHardeningGuidelinesTests.Guard2_async_void_test_catches_non_handler_violation"/>
-    /// und wird NIE in KPPasskeyChecker.dll/.plgx geshippt.
+    /// It lives exclusively in the test project, backing
+    /// <see cref="ArchitectureHardeningGuidelinesTests.Guard2_async_void_test_catches_non_handler_violation"/>,
+    /// and is never shipped in KPPasskeyChecker.dll/.plgx.
     ///
-    /// Simuliert eine fire-and-forget-<c>async void</c>-Methode AUSSERHALB einer echten
-    /// WinForms-Event-Handler-Signatur (die whitelisted 2-Parameter-Form
-    /// "(object sender, EventArgs e)" fehlt hier absichtlich — nur ein Parameter, kein
-    /// EventArgs-Typ).
+    /// It simulates a fire-and-forget <c>async void</c> method outside a real WinForms event
+    /// handler signature: the whitelisted two-parameter form "(object sender, EventArgs e)" is
+    /// deliberately absent (one parameter only, no EventArgs type).
     ///
-    /// WICHTIG fuer den coder (GREEN-Schritt): Guard 2 arbeitet laut Story-Skizze via
-    /// <c>ProductionAssembly.GetTypes()</c> + <c>AsyncStateMachineAttribute</c>-Reflection. Damit
-    /// diese Fixture erfasst wird, muss der Reflection-Scan (wie bei Guard 1) zusaetzlich die
-    /// Testassembly selbst durchsuchen (z.B. eine Liste von Assemblies statt nur
-    /// ProductionAssembly), gefiltert auf einen klar erkennbaren Fixture-Marker-Namespace/-Attribut,
-    /// damit im Produktivbetrieb (nur ProductionAssembly) nichts davon auftaucht.
+    /// The guard works through reflection over <c>AsyncStateMachineAttribute</c>, so the scan has
+    /// to include the test assembly for these methods to be picked up.
     /// </summary>
     internal sealed class RogueFireAndForgetType
     {
-        // Verletzung: async void, aber KEINE (object sender, EventArgs e)-Signatur -> darf nicht
-        // von der IsWinFormsEventHandler-Whitelist erfasst werden. Ruft await auf, damit der
-        // Compiler tatsaechlich eine Async-State-Machine erzeugt (AsyncStateMachineAttribute) statt
-        // eines synchronen "async void" ohne await, was der Guard sonst evtl. nicht als "real async"
-        // erkennen wuerde.
+        // Violation: async void without an (object sender, EventArgs e) signature, so it must not
+        // be covered by the IsWinFormsEventHandler whitelist. It awaits so the compiler really
+        // emits an async state machine (AsyncStateMachineAttribute) rather than a synchronous
+        // "async void" without await, which the guard might not recognise as genuinely async.
         private async void FireAndForgetSingleParameter(object onlyOneParameter)
         {
             await Task.Delay(1).ConfigureAwait(false);
         }
 
-        // Zweite Verletzung, ganz ohne Parameter — deckt den Fall ab, dass ein
-        // IsWinFormsEventHandler-Check evtl. nur auf Parameteranzahl != 2 statt auf Typen prueft.
+        // Second violation, with no parameters at all — covers the case where an
+        // IsWinFormsEventHandler check only looks at the parameter count (!= 2) instead of the
+        // parameter types.
         private async void FireAndForgetNoParameters()
         {
             await Task.Delay(1).ConfigureAwait(false);

@@ -38,7 +38,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
         /// <summary>
         /// Loaded from ONLY the production assembly. Used for the "green against real code"
-        /// assertions (Szenarien 1, 6) so the fixtures (which live in the test assembly) can
+        /// assertions (Scenarios 1, 6) so the fixtures (which live in the test assembly) can
         /// never be part of it.
         /// </summary>
         public static readonly ArchUnitNET.Domain.Architecture ProductionOnlyArchitecture =
@@ -46,7 +46,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
         /// <summary>
         /// Loaded from BOTH the production assembly and this test assembly. Used exclusively for
-        /// the ROT-proof assertions (Szenarien 2, 7) so the fixtures are visible and the rule can
+        /// the RED-proof assertions (Scenarios 2, 7) so the fixtures are visible and the rule can
         /// demonstrably catch them.
         /// </summary>
         public static readonly ArchUnitNET.Domain.Architecture ProductionAndTestArchitecture =
@@ -67,7 +67,7 @@ namespace KPPasskeyChecker.Tests.Architecture
 
         /// <summary>
         /// The same namespace pattern used inside <see cref="DataMustNotDependOnUiRule"/>,
-        /// exposed separately so Szenario 3 can assert the filter itself never matches
+        /// exposed separately so Scenario 3 can assert the filter itself never matches
         /// KeeRadar.Shared.KeePassUi.* without needing the rule to throw.
         /// </summary>
         public static readonly Regex DataLayerNamespaceFilter =
@@ -81,11 +81,10 @@ namespace KPPasskeyChecker.Tests.Architecture
                 .Because("Interface naming convention.");
 
         /// <summary>
-        /// Guard 4 (N1): KeeRadar.Shared.KeePassUi.* and KPPasskeyChecker.UI.* must not depend on
+        /// Guard 4: KeeRadar.Shared.KeePassUi.* and KPPasskeyChecker.UI.* must not depend on
         /// any type in KeeRadar.Shared.Pgp.* except the PgpVerificationResult result DTO. Both UI
-        /// layers are in scope simultaneously — this is the N1 fix the assessment calls for (a
-        /// KeePassUi-only pattern would miss the plugin-.UI layer where a leak would more
-        /// plausibly occur).
+        /// layers are deliberately in scope simultaneously (a KeePassUi-only pattern would miss
+        /// the plugin-.UI layer where a leak would more plausibly occur).
         /// </summary>
         public static readonly IArchRule UiMustNotDependOnRawPgpRule =
             Types().That()

@@ -4,8 +4,8 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Shared.DomainMatching
 {
     /// <summary>
-    /// See <see cref="DomainCandidateGeneratorTests"/> for the ratchet rationale
-    /// (Architecture-Assessment 2026-07-02, Rangliste #3). <see cref="PublicSuffixList"/> is the
+    /// See <see cref="DomainCandidateGeneratorTests"/> for the ratchet rationale.
+    /// <see cref="PublicSuffixList"/> is the
     /// PSL parser/lookup used by <see cref="DomainCandidateGenerator"/>; it is pure, network-free
     /// logic (parsing a PSL text fixture and resolving eTLD+1), portable from
     /// <c>tools\SelfCheck\SharedChecks.CheckDomainCandidatesEtldPlusOne</c>, extended here.

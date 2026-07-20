@@ -6,8 +6,7 @@ using Xunit;
 namespace KPPasskeyChecker.Tests.Data
 {
     /// <summary>
-    /// Architecture-Assessment 2026-07-02, Achse 4 / Rangliste #2 ("Fehler-Senke
-    /// fuer fire-and-forget-Tasks"). <see cref="PasskeyDirectoryService.Start"/> and
+    /// Error sink for fire-and-forget refresh tasks. <see cref="PasskeyDirectoryService.Start"/> and
     /// <see cref="PasskeyDirectoryService.ScheduleTimer"/> currently kick off
     /// <c>Task.Run(() =&gt; RefreshAsync(false))</c> without observing the task's outcome. If an
     /// unexpected exception ever escapes <c>RefreshAsync</c> (e.g. from a <c>DataRefreshed</c>
@@ -20,11 +19,10 @@ namespace KPPasskeyChecker.Tests.Data
     /// <c>Initialize(PasskeySettingsStore, string)</c> factory), and that factory requires a real
     /// <c>KeePass.Plugins.IPluginHost</c> plus network access via the internally-constructed
     /// <c>PasskeyApiClient</c> — there is no injection seam today (Immutable-Core: this test suite
-    /// does not force one). Per the task's escape hatch ("falls der Service nicht isoliert
-    /// testbar ist, definiere den Test auf der kleinsten beobachtbaren Einheit und benenne die
-    /// Grenze"), this test targets the smallest observable unit that the fix requires: a guarded
-    /// task-runner ("error sink") that wraps a fire-and-forget <see cref="Func{Task}"/> and writes
-    /// any escaping exception into an observable slot instead of leaving it unobserved.
+    /// does not force one). This test therefore targets the smallest observable unit the fix
+    /// requires, and names that boundary explicitly: a guarded task-runner ("error sink") that
+    /// wraps a fire-and-forget <see cref="Func{Task}"/> and writes any escaping exception into an
+    /// observable slot instead of leaving it unobserved.
     ///
     /// This type (<c>BackgroundRefreshErrorSink</c>) is wired through <c>PasskeyDirectoryService.Start</c>
     /// / <c>ScheduleTimer</c>.
