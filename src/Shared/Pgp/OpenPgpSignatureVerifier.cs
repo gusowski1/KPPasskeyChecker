@@ -56,9 +56,15 @@ namespace KeeRadar.Shared.Pgp
                 int pos = 0;
                 while (pos < packets.Length)
                 {
+                    int packetStart = pos;
                     int bodyStart, bodyLen;
                     int tag = PgpPacketReader.ReadHeader(packets, ref pos, out bodyStart, out bodyLen);
-                    if (bodyStart + bodyLen > packets.Length)
+
+                    // Bound check computed as a long: PgpPacketReader already rejects a negative
+                    // bodyLen, but a very large non-negative one (close to int.MaxValue) could still
+                    // wrap bodyStart + bodyLen past int range and slip through an int-only comparison.
+                    long bodyEnd = (long)bodyStart + bodyLen;
+                    if (bodyEnd > packets.Length)
                         return PgpVerificationResult.Invalid("Packet length exceeds message (tag " + tag + ").");
 
                     if (tag == TagOnePassSignature)
@@ -68,7 +74,13 @@ namespace KeeRadar.Shared.Pgp
                     else if (tag == TagSignature)
                         signatureBody = Slice(packets, bodyStart, bodyLen);
 
-                    pos = bodyStart + bodyLen;
+                    // Every packet must end strictly past where it started, or the loop could spin
+                    // forever re-parsing the same bytes without ever throwing. Defence in depth
+                    // alongside PgpPacketReader's own negative-length rejection above.
+                    if (bodyEnd <= packetStart)
+                        return PgpVerificationResult.Invalid("Packet parser made no forward progress (tag " + tag + ").");
+
+                    pos = (int)bodyEnd;
                 }
 
                 if (content == null)
@@ -252,6 +264,12 @@ namespace KeeRadar.Shared.Pgp
             int tag = PgpPacketReader.ReadHeader(message, ref pos, out bodyStart, out bodyLen);
             if (tag != TagCompressedData)
                 return message; // already an uncompressed packet stream
+
+            // Same overflow-safe bound check as the main packet loop, plus a minimum of one body byte
+            // since the algorithm id below is read unconditionally.
+            long bodyEnd = (long)bodyStart + bodyLen;
+            if (bodyLen < 1 || bodyEnd > message.Length)
+                throw new InvalidDataException("Malformed compressed-data packet length.");
 
             byte algorithm = message[bodyStart];
             int dataStart = bodyStart + 1;

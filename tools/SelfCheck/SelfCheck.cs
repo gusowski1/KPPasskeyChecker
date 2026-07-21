@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using KeeRadar.Shared.Pgp;
 
 namespace KPPasskeyChecker.SelfCheck
@@ -26,6 +27,7 @@ namespace KPPasskeyChecker.SelfCheck
 
             CheckDirectoryTrustAnchorFingerprint();
             CheckPgpPath();
+            CheckPgpInfiniteLoopGuard();
             CheckSharedTreeNotDiverged();
 
             Console.WriteLine();
@@ -81,6 +83,41 @@ namespace KPPasskeyChecker.SelfCheck
             byte[] rdata = SharedChecks.HexToBytes(DirectoryTrustAnchor.CertRecordHex);
             rdata[rdata.Length - 8] ^= 0xFF; // flip a byte well inside the modulus
             return OpenPgpRsaPublicKey.FromCertRecord(rdata);
+        }
+
+        // --- PGP packet-length integer-overflow guard (infinite-loop defence) --------------------
+        // Historical incident: a hostile ".sig" only a handful of bytes long could make
+        // OpenPgpSignatureVerifier.Verify loop forever (100% CPU, never throwing), because
+        // PgpPacketReader computed a negative packet length from a shift that overflows into the
+        // sign bit of a 32-bit int, which then slips past the bounds check and moves the parse
+        // position backward -- or leaves it unchanged -- instead of forward. This is exactly the
+        // kind of non-throwing, non-terminating input that only a wall-clock timeout can observe,
+        // so it earns a dedicated case here rather than relying on the ordinary fail-closed
+        // assertions above. Verify() runs on a background task with a generous timeout because the
+        // defect is non-termination, not a wrong result: a plain call would hang this whole harness
+        // instead of failing a single assertion.
+        private static void CheckPgpInfiniteLoopGuard()
+        {
+            Section("PGP packet-length integer-overflow guard (infinite-loop defence)");
+
+            // New format (0xC0 | tag 6, an unhandled Public-Key packet), l0=255 (5-byte length),
+            // length bytes 0xFF FF FF FA -> bodyLen = -6. bodyStart is 6, so bodyStart + bodyLen
+            // wraps back to exactly 0 -- this single packet's own header position -- so re-parsing
+            // it forever reproduces the loop.
+            byte[] message = new byte[] { 0xC6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFA };
+
+            Task<PgpVerificationResult> task = Task.Run(
+                () => DirectoryTrustAnchor.CreateVerifier().Verify(message));
+            bool completedInTime = task.Wait(TimeSpan.FromSeconds(5));
+
+            Assert(
+                "Verify(...) on a packet with an overflowing negative length terminates instead of looping forever",
+                completedInTime);
+            if (completedInTime)
+            {
+                Assert("Verify(...) on a packet with an overflowing negative length fails closed",
+                    !task.Result.IsValid);
+            }
         }
 
         // --- Shared-tree drift guard -------------------------------------------------------------

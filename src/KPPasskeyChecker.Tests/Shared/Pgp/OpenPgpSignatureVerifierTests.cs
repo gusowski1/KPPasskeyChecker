@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Threading.Tasks;
 using KeeRadar.Shared.Pgp;
 using Xunit;
 
@@ -10,8 +11,9 @@ namespace KPPasskeyChecker.Tests.Shared.Pgp
     /// <summary>
     /// Full public-surface coverage of <see cref="OpenPgpSignatureVerifier"/> — the real-fixture
     /// success path, and every fail-closed branch (wrong key, tampered bytes, malformed input,
-    /// decompression-bomb guard), asserting the verifier NEVER throws out of
-    /// <see cref="OpenPgpSignatureVerifier.Verify"/> regardless of how hostile the input is).
+    /// decompression-bomb guard, packet-length integer overflow), asserting the verifier NEVER
+    /// throws out of <see cref="OpenPgpSignatureVerifier.Verify"/> — and always terminates —
+    /// regardless of how hostile the input is).
     /// Ported from <c>tools\SelfCheck\SelfCheck.cs</c> (<c>CheckPgpPath</c>) and
     /// <c>DirectoryTrustAnchorTests</c>'s wrong-key pattern.
     /// Ownership: <c>KeeRadar.Shared.*</c> is tested exclusively in KPPasskeyChecker.Tests (the
@@ -166,6 +168,124 @@ namespace KPPasskeyChecker.Tests.Shared.Pgp
             PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
 
             Assert.False(result.IsValid);
+        }
+
+        // --- fail-closed: packet-length integer overflow must not hang the parser --------------------
+        // PgpPacketReader.ReadHeader computes new-format 5-byte and old-format 4-byte lengths by
+        // shifting the leading length byte into bits 24..31 of a signed 32-bit int (RFC 4880 packet
+        // lengths are unsigned; the reader stores the result as a C# `int`). When that leading byte is
+        // >= 0x80 the shift sets the sign bit, so the computed length comes out negative.
+        // OpenPgpSignatureVerifier.Verify's bounds check ("bodyStart + bodyLen > packets.Length") only
+        // ever rejects lengths that are too large: with bodyLen negative the sum is smaller than
+        // packets.Length, so the check passes silently, "pos = bodyStart + bodyLen" moves pos backward
+        // (or leaves it unchanged), and "while (pos < packets.Length)" can then loop forever without
+        // ever throwing -- which the surrounding catch (Exception) can therefore never observe. A
+        // handful of hostile bytes is enough to spin one CPU core at 100% indefinitely, which breaks
+        // the "fully fail-closed" / "never throws out" guarantee documented for this verifier (that
+        // guarantee covers exceptions, not non-termination).
+        //
+        // Every message below carries an unhandled packet tag (6 -- Public-Key) so none of the tag
+        // branches in the parse loop run; only the framing/length arithmetic is exercised. Because the
+        // defect is non-termination rather than a wrong result, a plain call would hang the test run
+        // itself, so Verify() runs on a background task with a generous, non-flaky wall-clock timeout;
+        // failing to complete in time is itself the observable failure, checked before the result.
+
+        private static readonly TimeSpan InfiniteLoopGuardTimeout = TimeSpan.FromSeconds(5);
+
+        // Runs Verify() on a background task and asserts it completes within
+        // InfiniteLoopGuardTimeout. If it does not, that assertion failure IS the test failure -- the
+        // orphaned background task is not cancelled or awaited afterwards (Verify has no cancellation
+        // support), which is acceptable here since it only happens while the defect is unfixed.
+        private static PgpVerificationResult VerifyWithTimeout(OpenPgpSignatureVerifier verifier, byte[] message)
+        {
+            Task<PgpVerificationResult> task = Task.Run(() => verifier.Verify(message));
+            bool completedInTime = task.Wait(InfiniteLoopGuardTimeout);
+
+            Assert.True(completedInTime,
+                "Verify(...) did not return within " + InfiniteLoopGuardTimeout.TotalSeconds
+                + "s -- the packet-parse loop is stuck (infinite loop), not merely slow.");
+
+            return task.Result;
+        }
+
+        [Fact]
+        public void Verify_new_format_5_byte_length_with_high_bit_set_terminates_and_fails_closed()
+        {
+            // New format (0xC0 | tag 6), l0=255 (5-byte length), length bytes 0xFF FF FF FA ->
+            // bodyLen = -6. bodyStart is 6, so bodyStart + bodyLen wraps back to exactly 0: the
+            // position this single packet's own header started at, so re-parsing it forever
+            // reproduces the loop without depending on where in a larger stream it occurs.
+            byte[] message = { 0xC6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFA };
+
+            PgpVerificationResult result = VerifyWithTimeout(DirectoryTrustAnchor.CreateVerifier(), message);
+
+            Assert.False(result.IsValid);
+        }
+
+        [Fact]
+        public void Verify_old_format_4_byte_length_with_high_bit_set_terminates_and_fails_closed()
+        {
+            // Old format (0x80 | tag 6 << 2 | length-type 2), length bytes 0xFF FF FF FB -> bodyLen
+            // = -5. bodyStart is 5, so bodyStart + bodyLen wraps back to exactly 0 -- the same
+            // zero-progress reproduction as the new-format case above, via the sibling 4-byte-length
+            // code path.
+            byte[] message = { 0x9A, 0xFF, 0xFF, 0xFF, 0xFB };
+
+            PgpVerificationResult result = VerifyWithTimeout(DirectoryTrustAnchor.CreateVerifier(), message);
+
+            Assert.False(result.IsValid);
+        }
+
+        [Fact]
+        public void Verify_a_negative_length_packet_mid_stream_produces_exact_zero_progress_and_terminates()
+        {
+            // A well-formed leading packet (old format, tag 6, 1-byte length, 2-byte body) is parsed
+            // and consumed normally, advancing pos to 4. The packet that follows at that offset has
+            // the same negative-length shape as the new-format case above, chosen so bodyStart +
+            // bodyLen lands back on 4 -- the offset where THIS packet's own header started, not on 0.
+            // This proves the hang is not specific to being the very first packet in the stream /
+            // wrapping all the way back to the start: the parser gets stuck re-reading the same
+            // malicious packet wherever it occurs, making exactly zero net progress on every
+            // iteration (as opposed to jumping further backward each time).
+            byte[] message = { 0x98, 0x02, 0xAA, 0xBB, 0xC6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFA };
+
+            PgpVerificationResult result = VerifyWithTimeout(DirectoryTrustAnchor.CreateVerifier(), message);
+
+            Assert.False(result.IsValid);
+        }
+
+        // --- packet length vs. buffer boundary (the bounds check itself, not the overflow defect) ---
+
+        [Fact]
+        public void Verify_a_packet_whose_body_length_exceeds_the_remaining_buffer_returns_invalid()
+        {
+            // Old format, tag 6 (unhandled), 1-byte length claiming a 10-byte body with only 2 bytes
+            // actually present. Exercises the ">" branch of the OpenPgpSignatureVerifier bounds check
+            // directly with a genuinely too-large, non-negative length -- distinct from the integer-
+            // overflow cases above, which sail straight past this same check because bodyLen there is
+            // negative rather than merely large.
+            byte[] message = { 0x98, 10, 0xAA, 0xBB };
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("exceeds message", result.Error, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Verify_a_packet_whose_body_length_exactly_reaches_the_end_of_the_buffer_is_accepted()
+        {
+            // Same shape as above, but the declared 2-byte body exactly matches the 2 bytes actually
+            // present, so bodyStart + bodyLen == packets.Length (not ">"). The bounds check must not
+            // reject this: the loop should terminate cleanly at the end of the buffer and fall through
+            // to the ordinary "no literal data packet" outcome, proving the boundary itself is handled
+            // correctly and is not conflated with the overflow defect above.
+            byte[] message = { 0x98, 0x02, 0xAA, 0xBB };
+
+            PgpVerificationResult result = DirectoryTrustAnchor.CreateVerifier().Verify(message);
+
+            Assert.False(result.IsValid);
+            Assert.Contains("No literal data packet found", result.Error, StringComparison.Ordinal);
         }
 
         // --- fail-closed: decompression-bomb guard (16 MB bound) ------------------------------------
