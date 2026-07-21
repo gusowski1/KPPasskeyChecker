@@ -442,3 +442,11 @@ build/
 
 # Local, non-committed notes (CLAUDE.local.md and any other *.local.md)
 *.local.md
+
+# Transient artifacts staged by tools/run-selfcheck.ps1: the compiled harness, the copied test
+# fixtures and the copied KeePass reference. The script deletes them again in a finally block, but
+# that cleanup does not survive the process being killed — ignoring them keeps an interrupted run
+# from leaving a committable binary in the tree.
+tools/SelfCheck.exe
+tools/fixtures/
+tools/KeePass.exe
