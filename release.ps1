@@ -10,11 +10,15 @@
     Workflow:
       1. Create the release branch from main:
              git switch -c release/vX.Y.Z
-      2. Develop on the branch -- one commit per completed feature.
+      2. Develop on the branch -- one commit per completed feature. Whenever a change is
+         visible to a plugin user, add its release note under "## [Unreleased]" in
+         CHANGELOG.md as part of that same change: release notes address users, commit
+         subjects address developers, and only the author of the change knows which of the
+         two a given edit deserves.
       3. release.ps1 -Version X.Y.Z -Stage Preview
-         Writes the proposed CHANGELOG section for X.Y.Z to CHANGELOG.md (uncommitted)
-         and shows the version-bump plan. Review / edit the section now -- this is the
-         approval gate for the release notes.
+         Promotes [Unreleased] to "## [X.Y.Z]" (uncommitted) and shows the version-bump
+         plan. Review / edit the section now -- this is the approval gate for the release
+         notes.
       4. release.ps1 -Version X.Y.Z -Stage Prepare
          Bumps the three version files, commits everything (working-tree changes + bump,
          including the reviewed CHANGELOG), pushes the branch and opens a PR against main.
@@ -24,11 +28,15 @@
          Checks out main, pulls, builds, creates the GitHub release.
 
     Stages:
-      Preview  (default)   Show the branch commits and the version-bump plan, and write the
-                           proposed CHANGELOG section for -Version to CHANGELOG.md
-                           (uncommitted) so it can be reviewed/edited before Prepare commits
-                           it. Commits, pushes and releases nothing; an existing section for
-                           that version is never overwritten (re-running Preview is safe).
+      Preview  (default)   Show the branch commits and the version-bump plan, and prepare the
+                           CHANGELOG section for -Version (uncommitted) so it can be reviewed
+                           and edited before Prepare commits it: [Unreleased] is promoted to
+                           "## [x.y.z]", or -- only when it holds no entries -- the section is
+                           derived from commit subjects as a fallback. Preview also prints
+                           commit count against entry count, so a user-visible change that
+                           never got an entry is visible at the gate. Commits, pushes and
+                           releases nothing; an existing section for that version is never
+                           overwritten (re-running Preview is safe).
       Prepare              Generate/update CHANGELOG.md, bump version files, commit,
                            push branch, open PR.
                            RESUMABLE: if the version is already bumped and the branch
@@ -158,6 +166,55 @@ function Set-ChangelogSection([string]$ver, [string]$sectionText) {
         for ($i = $insertAt; $i -lt $lines.Count; $i++) { $out.Add($lines[$i]) }
     }
     [System.IO.File]::WriteAllText($path, ($out -join "`n"), (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Convert-UnreleasedToVersion([string]$ver) {
+    # Promotes the "## [Unreleased]" section to "## [ver] - <today>" and leaves a fresh, empty
+    # [Unreleased] heading behind for the next version. Returns the number of entries moved, or 0
+    # when there is nothing to promote (no such section, or it holds no "- " entries).
+    #
+    # This is the primary way release notes come to exist. Entries are written by whoever makes
+    # the change, in user-facing wording, at the moment it is clear whether a user would notice
+    # the change at all -- a judgement that cannot be recovered afterwards from commit subjects,
+    # because those address developers while release notes address users.
+    $path = Join-Path $RepoRoot 'CHANGELOG.md'
+    if (-not (Test-Path $path)) { return 0 }
+    $lines = @(Get-Content $path)
+
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*\[Unreleased\]') { $start = $i; break }
+    }
+    if ($start -lt 0) { return 0 }
+
+    $end = $start + 1
+    while ($end -lt $lines.Count -and $lines[$end] -notmatch '^##\s*\[') { $end++ }
+
+    $body = @()
+    for ($i = $start + 1; $i -lt $end; $i++) { $body += $lines[$i] }
+    $entryCount = @($body | Where-Object { $_ -match '^\s*-\s+\S' }).Count
+    if ($entryCount -eq 0) { return 0 }
+
+    while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[0])) {
+        $body = @($body | Select-Object -Skip 1)
+    }
+    while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[$body.Count - 1])) {
+        $body = @($body | Select-Object -First ($body.Count - 1))
+    }
+
+    $today = Get-Date -Format 'yyyy-MM-dd'
+    $out = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $start; $i++) { $out.Add($lines[$i]) }
+    $out.Add('## [Unreleased]')
+    $out.Add('')
+    $out.Add("## [$ver] - $today")
+    $out.Add('')
+    foreach ($l in $body) { $out.Add($l) }
+    $out.Add('')
+    for ($i = $end; $i -lt $lines.Count; $i++) { $out.Add($lines[$i]) }
+
+    [System.IO.File]::WriteAllText($path, ($out -join "`n"), (New-Object System.Text.UTF8Encoding($false)))
+    return $entryCount
 }
 
 function Get-VersionFiles {
@@ -332,17 +389,30 @@ switch ($Stage) {
                 Write-Host ("  ## [{0}] already exists -- left untouched. Edit it if needed:" -f $Version) -ForegroundColor DarkGray
                 Write-Host ("  {0}" -f $changelogPath)
             } else {
-                $draftCommits = $commits
-                if ($draftCommits.Count -eq 0) { $draftCommits = @("- (no feature commits found on branch)") }
-                $draftText = Format-ChangelogSection $Version $draftCommits
-                Set-ChangelogSection $Version $draftText
                 $draftWritten = $true
+                $promoted = Convert-UnreleasedToVersion $Version
+                if ($promoted -gt 0) {
+                    Write-Host ("  Promoted [Unreleased] -> ## [{0}] ({1} entries), fresh [Unreleased] left behind." -f $Version, $promoted) -ForegroundColor Yellow
+                } else {
+                    $draftCommits = $commits
+                    if ($draftCommits.Count -eq 0) { $draftCommits = @("- (no feature commits found on branch)") }
+                    Set-ChangelogSection $Version (Format-ChangelogSection $Version $draftCommits)
+                    Write-Host ("  [Unreleased] held no entries -- FELL BACK to deriving ## [{0}] from {1} commit subject(s)." -f $Version, $commits.Count) -ForegroundColor Yellow
+                    Write-Host "  The fallback yields developer wording, not release notes. Entries belong under" -ForegroundColor DarkGray
+                    Write-Host "  [Unreleased], written while the change is made, by whoever knows if a user notices." -ForegroundColor DarkGray
+                }
 
-                Write-Host ("  Draft ## [{0}] written to CHANGELOG.md (uncommitted) -- review / edit it now:" -f $Version) -ForegroundColor Yellow
-                Write-Host ("  {0}" -f $changelogPath)
-                Write-Host "  Discard the draft with: git checkout -- CHANGELOG.md" -ForegroundColor DarkGray
+                $sectionText = Get-ChangelogSection $Version
+                $entryCount = @(($sectionText -split "`n") | Where-Object { $_ -match '^\s*-\s+\S' }).Count
+                Write-Host ("  Branch commits: {0}   |   release-note entries: {1}" -f $commits.Count, $entryCount)
+                if ($commits.Count -gt $entryCount) {
+                    Write-Host "  A gap is expected -- most commits are invisible to users. Still worth a glance:" -ForegroundColor DarkGray
+                    Write-Host "  a missing entry for a user-visible change fails silently, unlike a wrong one." -ForegroundColor DarkGray
+                }
+                Write-Host ("  Review / edit it now: {0}" -f $changelogPath) -ForegroundColor Yellow
+                Write-Host "  Discard with: git checkout -- CHANGELOG.md" -ForegroundColor DarkGray
                 Write-Host ""
-                ($draftText -split "`n") | ForEach-Object { Write-Host "  | $_" }
+                ($sectionText -split "`n") | ForEach-Object { Write-Host "  | $_" }
             }
         }
 
@@ -367,7 +437,7 @@ switch ($Stage) {
 
         Write-Host ""
         Write-Host "Plan (Prepare):" -ForegroundColor White
-        Write-Host "  1. Use the CHANGELOG.md ## [$Version] section (written here in Preview; generated in Prepare only if still missing)"
+        Write-Host "  1. Use the CHANGELOG.md ## [$Version] section (prepared here in Preview; Prepare only generates it if still missing)"
         Write-Host "  2. Bump version files ($current -> $Version)"
         Write-Host "  3. git add -A && git commit -m 'Release $Version'"
         Write-Host "  4. git push -u origin $branch"
