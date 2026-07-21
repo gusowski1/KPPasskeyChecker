@@ -9,6 +9,8 @@ so keep each `## [x.y.z]` heading and its body accurate before running a release
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-21
+
 ### Added
 - "[No Data]" in the Passkey Support column when the directory was consulted and the entry's
   domain is simply not listed, so "checked, nothing found" can be told apart from "not loaded yet"
@@ -34,7 +36,7 @@ so keep each `## [x.y.z]` heading and its body accurate before running a release
 ## [0.3.0] - 2026-06-26
 
 ### Added
-- Plugin icon (16×16, KeePass key with navy badge) shown in the Tools menu, entry
+- Plugin icon (16Ã—16, KeePass key with navy badge) shown in the Tools menu, entry
   context menu, and detail dialog title bar.
 - Self-check harness (`tools/SelfCheck`) for offline regression testing of core logic
   (parsing, scope mapping, domain matching, PGP verification path) without a running

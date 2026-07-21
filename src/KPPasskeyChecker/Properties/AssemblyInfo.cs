@@ -27,11 +27,11 @@ using System.Runtime.InteropServices;
 [assembly: Guid("a8e6f3c2-1b4d-4e7a-9c5f-2d3e4f5a6b7c")]
 
 // Expose internal types to the unit-test project (tests reference the compiled assembly, so
-// internal classes need this). Test-only, no runtime/logic effect; harmless in the .plgx — the
+// internal classes need this). Test-only, no runtime/logic effect; harmless in the .plgx â€” the
 // named assembly simply isn't present when KeePass recompiles the sources at load time.
 [assembly: InternalsVisibleTo("KPPasskeyChecker.Tests")]
 
-// Plugin version. Keep in sync with PluginVersion.Current ("0.4.0").
+// Plugin version. Keep in sync with PluginVersion.Current ("0.5.0").
 // Do NOT use asterisks here (KeePass requires a comparable, fixed version).
-[assembly: AssemblyVersion("0.4.0.0")]
-[assembly: AssemblyFileVersion("0.4.0.0")]
+[assembly: AssemblyVersion("0.5.0.0")]
+[assembly: AssemblyFileVersion("0.5.0.0")]
