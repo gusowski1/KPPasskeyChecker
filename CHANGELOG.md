@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `release.ps1` uses the section for the version being released as the GitHub release notes,
 so keep each `## [x.y.z]` heading and its body accurate before running a release.
 
+## [Unreleased]
+
+## [0.5.0] - 2026-07-21
+
+### Added
+- "[No Data]" in the Passkey Support column when the directory was consulted and the entry's
+  domain is simply not listed, so "checked, nothing found" can be told apart from "not loaded yet"
+
+### Changed
+- stored-passkey status is now always shown in bracket form ("[Active]"), consistent with
+  "[Inactive]" and with the directory values next to it
+
+### Fixed
+- errors during a background directory refresh are surfaced instead of being silently lost
+
+### Security
+- a malformed or hostile signature file could make signature verification run forever at full CPU;
+  packet lengths are now validated and verification always fails closed
+
 ## [0.4.0] - 2026-06-27
 
 ### Added

@@ -28,12 +28,14 @@ $SrcPlugin   = Join-Path $ProjectRoot 'src\KPPasskeyChecker'
 $SrcShared   = Join-Path $ProjectRoot 'src\Shared'
 $HarnessCs       = Join-Path $ToolsDir 'SelfCheck\SelfCheck.cs'
 $HarnessSharedCs = Join-Path $ToolsDir 'SelfCheck\SharedChecks.cs'
+$HarnessTreeCmpCs = Join-Path $ToolsDir 'SelfCheck\SharedTreeComparer.cs'
 if ([string]::IsNullOrEmpty($KeePassExe)) { $KeePassExe = Join-Path $ProjectRoot 'Libs\KeePass.exe' }
 
 if (-not (Test-Path $SrcPlugin))  { throw "Plugin sources not found: $SrcPlugin" }
 if (-not (Test-Path $SrcShared))  { throw "Shared sources not found: $SrcShared" }
 if (-not (Test-Path $HarnessCs))       { throw "Harness not found: $HarnessCs" }
 if (-not (Test-Path $HarnessSharedCs)) { throw "Shared harness not found: $HarnessSharedCs" }
+if (-not (Test-Path $HarnessTreeCmpCs)) { throw "Shared-tree comparer not found: $HarnessTreeCmpCs" }
 if (-not (Test-Path $KeePassExe)) { throw "KeePass.exe not found: $KeePassExe (supply it locally, see Libs\README.md)" }
 $KeePassExe = (Resolve-Path $KeePassExe).Path
 
@@ -52,6 +54,7 @@ $sources += Get-Sources $SrcShared
 $sources += Get-Sources $SrcPlugin
 $sources += $HarnessCs
 $sources += $HarnessSharedCs
+$sources += $HarnessTreeCmpCs
 
 $OutExe = Join-Path $ToolsDir 'SelfCheck.exe'
 if (Test-Path $OutExe) { Remove-Item $OutExe -Force }
@@ -70,7 +73,7 @@ $KeePassDst = Join-Path $ToolsDir ([System.IO.Path]::GetFileName($KeePassExe))
 $code = 1
 try {
     Write-Host "==> Compiling self-check harness (csc /langversion:5)" -ForegroundColor Cyan
-    $cscArgs = @('/nologo','/target:exe','/langversion:5',"/out:$OutExe")
+    $cscArgs = @('/nologo','/target:exe','/langversion:5','/warnaserror',"/out:$OutExe")
     foreach ($r in @('System.dll','System.Core.dll','System.Drawing.dll','System.IO.Compression.dll',
                      'System.Net.Http.dll','System.Web.Extensions.dll','System.Windows.Forms.dll')) {
         $cscArgs += "/reference:$r"

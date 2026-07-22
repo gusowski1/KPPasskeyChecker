@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Coverlet coverage-collector configuration (report-only phase — see the KPPasskeyChecker.Tests
+  Coverage-Gate story). Kept in sync with the documented exemptions in
+  src\KPPasskeyChecker.Tests\Architecture\TestCoverageExemptions.cs by
+  src\KPPasskeyChecker.Tests\Architecture\CoverageExemptionSyncTests.cs — do not edit the
+  exclude filter list below without also updating TestCoverageExemptions.Entries (or vice
+  versa). Note for editors: the sync test locates this element via a raw-text regex, not an
+  XML parser, so this comment intentionally avoids spelling out the element's own tag name.
+
+  Two entries below (KPPasskeyCheckerExt, PasskeySettingsForm) are NOT individually documented
+  TestCoverageExemptions.Entries items — they are structural excludes, allowed by the sync test
+  because the named type is itself structurally exempt from the needs-tests guard (Ext-suffix /
+  Form-derivation, see TestCoverageExemptions.IsEntrypointExt / IsWinFormsFormDerivation): the
+  KeePass plugin entry point and the WinForms settings dialog carry no unit-testable logic of
+  their own, so a per-class coverage threshold would only ever measure UI/host-wiring noise.
+
+  The trailing "*d__*" entry is a third, DIFFERENT kind of structural exclude: it is a
+  wildcard TYPE-NAME pattern, not a named type, and matches every C#-compiler-generated
+  async/iterator state-machine nested type (e.g. "DomainCandidateGenerator/<LoadPslAsync>d__6")
+  regardless of its enclosing class. These nested types are pure compiler artifacts — never
+  hand-written, never containing testable business logic of their own (the real logic is the
+  async/iterator method body the compiler moved into them) — so they must not surface as their
+  own 0%-or-partial "class" rows that would poison a future per-class coverage threshold. Tried
+  first: coverlet's documented ExcludeByAttribute data-collector option (CompilerGeneratedAttribute;
+  a separate configuration element from the exclude filter list below, so it would not have
+  touched this filter list or CoverageExemptionSyncTests at all) — REJECTED empirically: it also
+  strips every auto-property accessor (get_X/set_X are themselves compiler-generated) and, if a
+  class's only hand-written logic lives inside an async method, the WHOLE class then reports zero
+  instrumentable lines and silently disappears from the report (verified via a before/after
+  class-list diff: KPPasskeyChecker.Data.BackgroundRefreshErrorSink and
+  KPPasskeyChecker.Data.ContactInfo — both fully covered, unrelated to any async state machine —
+  vanished entirely). That is real coverage damage, not just noise removal, so the exclude filter
+  list is used instead: it targets only the offending nested types by name pattern. A
+  bracket-shaped pattern matching the exact compiler convention (e.g. "*<*>d__*" or "*/<*>d__*",
+  coverlet's Mono.Cecil nested-type separator) does NOT match under coverlet 6.0.2 here (verified:
+  any pattern containing a literal "<" or ">" silently matches nothing, regardless of wildcard
+  placement or exact-vs-prefix form) — only the bracket-free substring form below reliably
+  matches. "d__" is
+  exclusively the Roslyn-emitted state-machine marker; grepping both repos' src\ trees for the
+  literal substring "d__" in .cs source finds zero hand-written hits, so this pattern cannot
+  collide with a real identifier. CoverageExemptionSyncTests recognises this literal pattern as a
+  third structural-whitelist case (see IsStructurallyExemptPattern there) — it is NOT a
+  TestCoverageExemptions.Entries item (no named type to reason about) and does not change that
+  list.
+
+  Usage: dotnet test KPPasskeyChecker.sln -settings coverage.runsettings -collect:"XPlat Code Coverage" (with the usual double-dash CLI flags).
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[KPPasskeyChecker]*</Include>
+          <Exclude>[KPPasskeyChecker]KPPasskeyChecker.UI.PluginIcon,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailForm,[KPPasskeyChecker]KeeRadar.Shared.KeePassUi.EntryDetailRow,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyApiClient,[KPPasskeyChecker]KeeRadar.Shared.Http.ConditionalHttpFetcher,[KPPasskeyChecker]KPPasskeyChecker.Data.PasskeyDirectoryService,[KPPasskeyChecker]KeeRadar.Shared.DomainMatching.DomainCandidateGenerator,[KPPasskeyChecker]KPPasskeyChecker.KPPasskeyCheckerExt,[KPPasskeyChecker]KPPasskeyChecker.Settings.PasskeySettingsForm,[KeePass]*,[xunit*]*,[KPPasskeyChecker]*d__*</Exclude>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

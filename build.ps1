@@ -148,7 +148,7 @@ Move-Item $StagePlgx $PlgxOutput -Force
 # --- 5. Compile standalone .dll (skipped in -PlgxOnly) ---------------------
 if (-not $PlgxOnly) {
     Write-Step "Compiling standalone .dll (csc)"
-    $cscArgs = @('/nologo','/target:library','/optimize+','/langversion:5',"/out:$DllOutput")
+    $cscArgs = @('/nologo','/target:library','/optimize+','/langversion:5','/warnaserror',"/out:$DllOutput")
     foreach ($r in @('System.dll','System.Core.dll','System.Drawing.dll','System.IO.Compression.dll',
                      'System.Net.Http.dll','System.Web.Extensions.dll','System.Windows.Forms.dll')) {
         $cscArgs += "/reference:$r"

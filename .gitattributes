@@ -1,0 +1,8 @@
+# Deterministic line endings: LF everywhere. Keeps the editing tooling (which writes LF)
+# from creating CRLF/LF churn, and keeps both repos' src\Shared byte-identical for the
+# SelfCheck drift guard.
+* text=auto eol=lf
+
+# Binary files: never apply line-ending conversion.
+*.sig  binary
+*.png  binary

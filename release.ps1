@@ -10,18 +10,33 @@
     Workflow:
       1. Create the release branch from main:
              git switch -c release/vX.Y.Z
-      2. Develop on the branch -- one commit per completed feature.
-      3. release.ps1 -Version X.Y.Z -Stage Prepare
-         Generates a CHANGELOG section from branch commits, bumps the three version
-         files, commits everything (working-tree changes + bump), pushes the branch
-         and opens a PR against main. No build -- Publish always rebuilds from main.
-      4. Review / edit CHANGELOG.md if needed, then merge the PR on GitHub.
-      5. release.ps1 -Version X.Y.Z -Stage Publish
+      2. Develop on the branch -- one commit per completed feature. Whenever a change is
+         visible to a plugin user, add its release note under "## [Unreleased]" in
+         CHANGELOG.md as part of that same change: release notes address users, commit
+         subjects address developers, and only the author of the change knows which of the
+         two a given edit deserves.
+      3. release.ps1 -Version X.Y.Z -Stage Preview
+         Promotes [Unreleased] to "## [X.Y.Z]" (uncommitted) and shows the version-bump
+         plan. Review / edit the section now -- this is the approval gate for the release
+         notes.
+      4. release.ps1 -Version X.Y.Z -Stage Prepare
+         Bumps the three version files, commits everything (working-tree changes + bump,
+         including the reviewed CHANGELOG), pushes the branch and opens a PR against main.
+         No build -- Publish always rebuilds from main.
+      5. Merge the PR on GitHub.
+      6. release.ps1 -Version X.Y.Z -Stage Publish
          Checks out main, pulls, builds, creates the GitHub release.
 
     Stages:
-      Preview  (default)   Show the branch commits (future CHANGELOG entries) and the
-                           version-bump plan. Changes nothing.
+      Preview  (default)   Show the branch commits and the version-bump plan, and prepare the
+                           CHANGELOG section for -Version (uncommitted) so it can be reviewed
+                           and edited before Prepare commits it: [Unreleased] is promoted to
+                           "## [x.y.z]", or -- only when it holds no entries -- the section is
+                           derived from commit subjects as a fallback. Preview also prints
+                           commit count against entry count, so a user-visible change that
+                           never got an entry is visible at the gate. Commits, pushes and
+                           releases nothing; an existing section for that version is never
+                           overwritten (re-running Preview is safe).
       Prepare              Generate/update CHANGELOG.md, bump version files, commit,
                            push branch, open PR.
                            RESUMABLE: if the version is already bumped and the branch
@@ -153,6 +168,55 @@ function Set-ChangelogSection([string]$ver, [string]$sectionText) {
     [System.IO.File]::WriteAllText($path, ($out -join "`n"), (New-Object System.Text.UTF8Encoding($false)))
 }
 
+function Convert-UnreleasedToVersion([string]$ver) {
+    # Promotes the "## [Unreleased]" section to "## [ver] - <today>" and leaves a fresh, empty
+    # [Unreleased] heading behind for the next version. Returns the number of entries moved, or 0
+    # when there is nothing to promote (no such section, or it holds no "- " entries).
+    #
+    # This is the primary way release notes come to exist. Entries are written by whoever makes
+    # the change, in user-facing wording, at the moment it is clear whether a user would notice
+    # the change at all -- a judgement that cannot be recovered afterwards from commit subjects,
+    # because those address developers while release notes address users.
+    $path = Join-Path $RepoRoot 'CHANGELOG.md'
+    if (-not (Test-Path $path)) { return 0 }
+    $lines = @(Get-Content $path)
+
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*\[Unreleased\]') { $start = $i; break }
+    }
+    if ($start -lt 0) { return 0 }
+
+    $end = $start + 1
+    while ($end -lt $lines.Count -and $lines[$end] -notmatch '^##\s*\[') { $end++ }
+
+    $body = @()
+    for ($i = $start + 1; $i -lt $end; $i++) { $body += $lines[$i] }
+    $entryCount = @($body | Where-Object { $_ -match '^\s*-\s+\S' }).Count
+    if ($entryCount -eq 0) { return 0 }
+
+    while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[0])) {
+        $body = @($body | Select-Object -Skip 1)
+    }
+    while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[$body.Count - 1])) {
+        $body = @($body | Select-Object -First ($body.Count - 1))
+    }
+
+    $today = Get-Date -Format 'yyyy-MM-dd'
+    $out = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $start; $i++) { $out.Add($lines[$i]) }
+    $out.Add('## [Unreleased]')
+    $out.Add('')
+    $out.Add("## [$ver] - $today")
+    $out.Add('')
+    foreach ($l in $body) { $out.Add($l) }
+    $out.Add('')
+    for ($i = $end; $i -lt $lines.Count; $i++) { $out.Add($lines[$i]) }
+
+    [System.IO.File]::WriteAllText($path, ($out -join "`n"), (New-Object System.Text.UTF8Encoding($false)))
+    return $entryCount
+}
+
 function Get-VersionFiles {
     param([string]$pluginName)
     @(
@@ -187,14 +251,44 @@ function Invoke-Build {
     if ($LASTEXITCODE -ne 0) { throw "build.ps1 failed (exit $LASTEXITCODE)." }
 }
 
+function Invoke-CoverageGate {
+    # Per-class coverage gate (release-only; the pre-commit hook stays a plain 'dotnet test'
+    # for fast feedback -- this is the authoritative gate before Prepare/Publish). Thresholds
+    # are calibrated below the measured per-class floor with margin (see coverage.runsettings /
+    # TestCoverageExemptions.Entries for the documented exemptions this report already reflects).
+    param([string]$StageName)
+
+    Write-Host "==> Running coverage gate (per-class line/branch thresholds)" -ForegroundColor Cyan
+    $resultsDir = Join-Path $RepoRoot 'TestResults'
+    if (Test-Path $resultsDir) { Remove-Item $resultsDir -Recurse -Force }
+
+    & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo `
+        --settings (Join-Path $RepoRoot 'coverage.runsettings') `
+        --collect:"XPlat Code Coverage" `
+        --results-directory $resultsDir
+    if ($LASTEXITCODE -ne 0) { throw "Coverage collection run failed. Fix the code and re-run $StageName." }
+
+    $report = Get-ChildItem -Path $resultsDir -Filter 'coverage.cobertura.xml' -Recurse |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $report) { throw "No coverage.cobertura.xml produced under $resultsDir." }
+
+    $gateScript = Join-Path $RepoRoot 'tools\coverage-gate.ps1'
+    if (-not (Test-Path $gateScript)) { throw "coverage-gate.ps1 not found at $gateScript." }
+
+    & $gateScript -ReportPath $report.FullName -LineThreshold 55 -BranchThreshold 60
+    if ($LASTEXITCODE -ne 0) { throw "Coverage gate failed. Raise coverage on the reported class(es) and re-run $StageName." }
+    Write-Host "  Coverage gate passed." -ForegroundColor Green
+    Write-Host ""
+}
+
 function Get-Assets {
     param([string]$pluginName)
     $buildDir = Join-Path $RepoRoot 'build'
     $plgx = Join-Path $buildDir ("{0}.plgx" -f $pluginName)
     $dll  = Join-Path $buildDir ("{0}.dll"  -f $pluginName)
     foreach ($a in @($plgx, $dll)) { if (-not (Test-Path $a)) { throw "Build artifact missing: $a" } }
-    # Return relative paths: gh on Windows mis-globs absolute paths with backslashes in some versions.
-    return @("build\{0}.plgx" -f $pluginName, "build\{0}.dll" -f $pluginName)
+    # Use forward slashes: gh treats backslashes as escape characters and mis-parses the path.
+    return @("build/{0}.plgx" -f $pluginName, "build/{0}.dll" -f $pluginName)
 }
 
 function Confirm-Or-Exit([string]$prompt) {
@@ -241,14 +335,30 @@ function Invoke-EnsurePr([string]$gh, [string]$branch, [string]$ver, [string]$no
     if ($LASTEXITCODE -ne 0) { throw "gh pr list failed (exit $LASTEXITCODE)." }
     if ($listJson -match '\{') {
         Write-Host ("  A PR for '{0}' is already open." -f $branch) -ForegroundColor Green
-    } else {
-        & $gh pr create --base main --head $branch --title ("Release {0}" -f $ver) --body $notes
-        if ($LASTEXITCODE -ne 0) {
-            throw ("gh pr create failed (exit $LASTEXITCODE). " +
-                "'Resource not accessible by personal access token (createPullRequest)' means the token " +
-                "lacks 'Pull requests: Read and write' -- add it to the fine-grained PAT, then re-run " +
-                "Prepare (it skips to opening the PR automatically).")
-        }
+        return
+    }
+
+    # The body goes via a temp file for the same reason the Publish stage uses --notes-file:
+    # PowerShell 5.1 mangles a multi-line native argument, so the '-' bullet lines of a CHANGELOG
+    # section arrive at gh as separate arguments instead of as body text.
+    $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) ("pr-body-{0}.md" -f $ver)
+    [System.IO.File]::WriteAllText($bodyFile, $notes, (New-Object System.Text.UTF8Encoding($false)))
+    $code = 1
+    try {
+        & $gh pr create --base main --head $branch --title ("Release {0}" -f $ver) --body-file $bodyFile
+        $code = $LASTEXITCODE
+    } finally {
+        Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($code -ne 0) {
+        # gh printed its own message above; do not overwrite it with a guess. Naming one probable
+        # cause as if it were the diagnosis sends whoever reads this down that path even when the
+        # real reason was something else entirely.
+        throw ("gh pr create failed (exit {0}). The actual reason is in gh's output above. " -f $code) +
+            "If it reads 'Resource not accessible by personal access token', the token lacks " +
+            "'Pull requests: Read and write'. Prepare is resumable: fix the cause and re-run it, " +
+            "it skips straight to opening the PR."
     }
 }
 
@@ -257,7 +367,8 @@ function Invoke-EnsurePr([string]$gh, [string]$branch, [string]$ver, [string]$no
 $info    = Get-PluginInfo
 $plugin  = $info.Name
 $current = $info.Version
-if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $current }
+$versionSpecified = -not [string]::IsNullOrWhiteSpace($Version)
+if (-not $versionSpecified) { $Version = $current }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "-Version must be x.y.z (got '$Version')." }
 
 $tag    = "v$Version"
@@ -276,6 +387,49 @@ switch ($Stage) {
             Write-Host "  (no commits on this branch yet)" -ForegroundColor DarkGray
         } else {
             $commits | ForEach-Object { Write-Host "  $_" }
+        }
+
+        # Write the proposed CHANGELOG section now (uncommitted) so it can be reviewed and edited
+        # BEFORE Prepare commits it -- Preview is the approval gate. An existing section is never
+        # overwritten, so re-running Preview is safe and manual edits survive. Requires an explicit
+        # -Version: without it $Version is just the current (already released) version.
+        $draftWritten = $false
+        if ($versionSpecified) {
+            $changelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
+            $changelogHasSection = (Test-Path $changelogPath) -and
+                ((Get-Content $changelogPath) -match ('^##\s*\[' + [regex]::Escape($Version) + '\]'))
+
+            Write-Host ""
+            Write-Host "CHANGELOG:" -ForegroundColor White
+            if ($changelogHasSection) {
+                Write-Host ("  ## [{0}] already exists -- left untouched. Edit it if needed:" -f $Version) -ForegroundColor DarkGray
+                Write-Host ("  {0}" -f $changelogPath)
+            } else {
+                $draftWritten = $true
+                $promoted = Convert-UnreleasedToVersion $Version
+                if ($promoted -gt 0) {
+                    Write-Host ("  Promoted [Unreleased] -> ## [{0}] ({1} entries), fresh [Unreleased] left behind." -f $Version, $promoted) -ForegroundColor Yellow
+                } else {
+                    $draftCommits = $commits
+                    if ($draftCommits.Count -eq 0) { $draftCommits = @("- (no feature commits found on branch)") }
+                    Set-ChangelogSection $Version (Format-ChangelogSection $Version $draftCommits)
+                    Write-Host ("  [Unreleased] held no entries -- FELL BACK to deriving ## [{0}] from {1} commit subject(s)." -f $Version, $commits.Count) -ForegroundColor Yellow
+                    Write-Host "  The fallback yields developer wording, not release notes. Entries belong under" -ForegroundColor DarkGray
+                    Write-Host "  [Unreleased], written while the change is made, by whoever knows if a user notices." -ForegroundColor DarkGray
+                }
+
+                $sectionText = Get-ChangelogSection $Version
+                $entryCount = @(($sectionText -split "`n") | Where-Object { $_ -match '^\s*-\s+\S' }).Count
+                Write-Host ("  Branch commits: {0}   |   release-note entries: {1}" -f $commits.Count, $entryCount)
+                if ($commits.Count -gt $entryCount) {
+                    Write-Host "  A gap is expected -- most commits are invisible to users. Still worth a glance:" -ForegroundColor DarkGray
+                    Write-Host "  a missing entry for a user-visible change fails silently, unlike a wrong one." -ForegroundColor DarkGray
+                }
+                Write-Host ("  Review / edit it now: {0}" -f $changelogPath) -ForegroundColor Yellow
+                Write-Host "  Discard with: git checkout -- CHANGELOG.md" -ForegroundColor DarkGray
+                Write-Host ""
+                ($sectionText -split "`n") | ForEach-Object { Write-Host "  | $_" }
+            }
         }
 
         Write-Host ""
@@ -299,7 +453,7 @@ switch ($Stage) {
 
         Write-Host ""
         Write-Host "Plan (Prepare):" -ForegroundColor White
-        Write-Host "  1. Generate CHANGELOG.md ## [$Version] from branch commits (edit before confirming)"
+        Write-Host "  1. Use the CHANGELOG.md ## [$Version] section (prepared here in Preview; Prepare only generates it if still missing)"
         Write-Host "  2. Bump version files ($current -> $Version)"
         Write-Host "  3. git add -A && git commit -m 'Release $Version'"
         Write-Host "  4. git push -u origin $branch"
@@ -308,7 +462,11 @@ switch ($Stage) {
         Write-Host "Plan (Publish, after PR merge):" -ForegroundColor White
         Write-Host ("  Build from main, create GitHub release {0} ({1}) with .plgx + .dll" -f $tag, $Type)
         Write-Host ""
-        Write-Host "Nothing changed. Re-run with -Stage Prepare when development is complete." -ForegroundColor Green
+        if ($draftWritten) {
+            Write-Host "Nothing committed, pushed or released. Review / edit the CHANGELOG draft, then re-run with -Stage Prepare." -ForegroundColor Green
+        } else {
+            Write-Host "Nothing changed. Re-run with -Stage Prepare when development is complete." -ForegroundColor Green
+        }
     }
 
     'Prepare' {
@@ -329,6 +487,16 @@ switch ($Stage) {
         }
         Write-Host "  Self-check passed." -ForegroundColor Green
         Write-Host ""
+
+        # xUnit tests: mandatory gate.
+        Write-Host "==> Running dotnet test (xUnit gate)" -ForegroundColor Cyan
+        & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo
+        if ($LASTEXITCODE -ne 0) { throw "xUnit tests failed. Fix the code and re-run Prepare." }
+        Write-Host "  xUnit tests passed." -ForegroundColor Green
+        Write-Host ""
+
+        # Per-class coverage gate: mandatory (release-only; pre-commit stays a plain 'dotnet test').
+        Invoke-CoverageGate 'Prepare'
 
         # Resumability checks: skip steps already completed.
         $alreadyBumped = ($current -eq $Version)
@@ -413,6 +581,25 @@ switch ($Stage) {
 
         $notes = Get-ChangelogSection $Version
         Confirm-Or-Exit ("Create GitHub release {0} ({1}) from main with built assets?" -f $tag, $Type)
+
+        # Self-check: run before any changes; abort immediately on failure.
+        Write-Host "==> Running self-check" -ForegroundColor Cyan
+        & "$RepoRoot\tools\run-selfcheck.ps1"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Self-check failed. Fix the code and re-run Publish."
+        }
+        Write-Host "  Self-check passed." -ForegroundColor Green
+        Write-Host ""
+
+        # xUnit tests: mandatory gate before build.
+        Write-Host "==> Running dotnet test (xUnit gate)" -ForegroundColor Cyan
+        & dotnet test (Join-Path $RepoRoot 'KPPasskeyChecker.sln') --configuration Release --nologo
+        if ($LASTEXITCODE -ne 0) { throw "xUnit tests failed. Fix the code and re-run Publish." }
+        Write-Host "  xUnit tests passed." -ForegroundColor Green
+        Write-Host ""
+
+        # Per-class coverage gate: mandatory (release-only; pre-commit stays a plain 'dotnet test').
+        Invoke-CoverageGate 'Publish'
 
         Invoke-Build
         $assets    = Get-Assets $plugin

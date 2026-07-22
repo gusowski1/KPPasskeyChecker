@@ -1,4 +1,4 @@
-﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared. Edit only there; propagate to consumer repos via sync-shared.ps1. Do not edit synced copies.
 using System;
 
 namespace KeeRadar.Shared.Pgp
@@ -50,6 +50,11 @@ namespace KeeRadar.Shared.Pgp
                     if (pos + 4 >= buf.Length)
                         throw new ArgumentException("Truncated 5-byte new-format length at offset " + pos + ".");
                     bodyLen = (buf[pos + 1] << 24) | (buf[pos + 2] << 16) | (buf[pos + 3] << 8) | buf[pos + 4];
+                    // RFC 4880 packet lengths are unsigned; a leading length byte >= 0x80 would set the
+                    // sign bit of this signed 32-bit int, so reject it here rather than let a negative
+                    // length reach the caller (it must never look like a valid, small or backward length).
+                    if (bodyLen < 0)
+                        throw new ArgumentException("Negative 5-byte new-format packet length at offset " + pos + ".");
                     pos += 5;
                 }
                 else
@@ -78,6 +83,9 @@ namespace KeeRadar.Shared.Pgp
                         if (pos + 3 >= buf.Length)
                             throw new ArgumentException("Truncated 4-byte old-format length at offset " + pos + ".");
                         bodyLen = (buf[pos] << 24) | (buf[pos + 1] << 16) | (buf[pos + 2] << 8) | buf[pos + 3];
+                        // Same unsigned-length guard as the new-format 5-byte case above.
+                        if (bodyLen < 0)
+                            throw new ArgumentException("Negative 4-byte old-format packet length at offset " + pos + ".");
                         pos += 4;
                         break;
                     default:

@@ -50,32 +50,41 @@ release.ps1 -Version <x.y.z> -Type <draft|prerelease|release> [-Stage Preview|Pr
 ```
 
 - **Preview** (default) — lists the version bump, the files that change, the working-tree changes
-  that would be committed, the CHANGELOG notes and the plan. Changes nothing (the approval gate).
-- **Prepare** — bumps the three version locations (`VersionInfo.txt`, `Properties\AssemblyInfo.cs`,
-  `PluginVersion.cs`), builds, creates branch `release/vX.Y.Z`, commits, pushes and opens a PR.
-  No GitHub release yet.
+  that would be committed and the plan, and **writes the proposed `## [x.y.z]` CHANGELOG section**
+  to `CHANGELOG.md` (uncommitted) so it can be reviewed and edited before Prepare commits it.
+  This is the approval gate for the release notes: it commits, pushes and releases nothing, and
+  never overwrites an existing section for that version (re-running Preview is safe).
+- **Prepare** — run **on** the release branch `release/vX.Y.Z` (it does not create the branch and
+  aborts if you are elsewhere): bumps the three version locations (`VersionInfo.txt`,
+  `Properties\AssemblyInfo.cs`, `PluginVersion.cs`), commits the working-tree changes + bump
+  (including the reviewed CHANGELOG), pushes and opens a PR. No build and no GitHub release yet —
+  Publish always rebuilds from `main`.
 - **Publish** — run **after** the PR is merged to `main`: builds from `main` and creates the GitHub
   release `vX.Y.Z` (tag on `main`) with the `.plgx`/`.dll` assets and the CHANGELOG section as notes.
 
 `-Type` maps to `--draft` / `--prerelease` / (none = a normal "Latest" release). GitHub shows a
-SHA-256 digest per asset itself, so no `SHA256SUMS` file is shipped. `Prepare` generates the
-`## [x.y.z]` section in `CHANGELOG.md` automatically from branch commits — review/edit it before
-confirming. The umbrella **`..\release-all.ps1`** releases both plugins in lockstep at one version;
+SHA-256 digest per asset itself, so no `SHA256SUMS` file is shipped. `Preview` generates the
+`## [x.y.z]` section in `CHANGELOG.md` automatically from the branch commits — review/edit it there
+before running Prepare (Prepare still generates it if it is missing).
+The umbrella **`..\release-all.ps1`** releases both plugins in lockstep at one version;
 run a single repo's `release.ps1` to release one plugin.
 
 ### Development workflow per version
 
 Feature work for a release follows a lightweight branch model — no per-feature branches:
 
-1. **Create the release branch** — run `release.ps1 -Stage Preview` first (dry-run), then
-   `release.ps1 -Stage Prepare` to bump the version, create `release/vX.Y.Z`, commit the bump,
-   push, and open the PR against `main`.
+1. **Create the release branch yourself** — `git switch -c release/vX.Y.Z` from `main`.
+   `release.ps1 -Stage Prepare` does **not** create it; it requires you to already be on that
+   branch and aborts otherwise.
 2. **One commit per completed feature** — after each feature is done, Lars commits it directly on
    `release/vX.Y.Z` with a clear, scoped message (e.g. `add PGP fixture self-test`).
    The developer agent signals when a feature is ready by outputting a suggested commit message.
-3. **PR accumulates feature commits** — the single open PR `release/vX.Y.Z → main` is the
-   review surface for the whole version. No force-push; no squash during development.
-4. **Publish on merge** — once Lars merges the PR to `main`, run `release.ps1 -Stage Publish`
+3. **Prepare the release** — run `release.ps1 -Version X.Y.Z -Stage Preview` (writes the
+   `## [X.Y.Z]` CHANGELOG draft), review and edit that section, then
+   `release.ps1 -Version X.Y.Z -Stage Prepare` to bump, commit, push and open the PR.
+4. **The PR is the review surface** — the PR `release/vX.Y.Z → main` opened by Prepare covers the
+   whole version. No force-push; no squash.
+5. **Publish on merge** — once Lars merges the PR to `main`, run `release.ps1 -Stage Publish`
    to tag `main` and create the GitHub release.
 
 ## Architecture
@@ -175,5 +184,3 @@ Do not skip this even if the Shared change looks trivial — KP2FAChecker must c
 - Do **not** merge passkey and 2FA logic into one plugin.
 - Licensed under **GPLv3** (`LICENSE`); any new dependency must be GPL-compatible (this is partly why the plugin sticks to the .NET BCL).
 - Everything under `Libs\` except its `README.md` is **gitignored** — `KeePass.exe` must be supplied there locally for builds; see `Libs\README.md`.
-
-<!-- Internal planning / backlog is kept in CLAUDE.local.md (gitignored, not committed). -->

@@ -1,0 +1,15 @@
+repos:
+  - repo: local
+    hooks:
+      - id: run-selfcheck
+        name: Run SelfCheck (csc C#5 tripwire + PGP + drift guard)
+        entry: powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-selfcheck.ps1
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: run-dotnet-tests
+        name: Run Architecture and Unit Tests
+        entry: dotnet test KPPasskeyChecker.sln --configuration Release
+        language: system
+        pass_filenames: false
+        always_run: true

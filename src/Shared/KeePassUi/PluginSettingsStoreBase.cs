@@ -1,4 +1,4 @@
-﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared. Edit only there; propagate to consumer repos via sync-shared.ps1. Do not edit synced copies.
 using KeePass.Plugins;
 
 namespace KeeRadar.Shared.KeePassUi

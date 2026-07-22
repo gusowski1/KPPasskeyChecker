@@ -32,6 +32,7 @@ namespace KPPasskeyChecker.Data
         private readonly ILocalCache _cache;
         private readonly PasskeySettingsStore _settings;
         private readonly string _cacheDirectory;
+        private readonly BackgroundRefreshErrorSink _backgroundErrorSink = new BackgroundRefreshErrorSink();
         private Timer _refreshTimer;
         private bool _disposed;
 
@@ -68,15 +69,16 @@ namespace KPPasskeyChecker.Data
         private void Start()
         {
             DomainCandidateGenerator.InitializeAsync(_cacheDirectory);
-            Task.Run(() => RefreshAsync(false));
+            Task.Run(() => _backgroundErrorSink.Run(() => RefreshAsync(false)));
             ScheduleTimer();
         }
 
         private void ScheduleTimer()
         {
             long intervalMs = (long)TimeSpan.FromHours(_settings.RefreshIntervalHours).TotalMilliseconds;
-            _refreshTimer = new Timer(delegate { Task.Run(() => RefreshAsync(false)); },
-                                      null, intervalMs, intervalMs);
+            _refreshTimer = new Timer(
+                delegate { Task.Run(() => _backgroundErrorSink.Run(() => RefreshAsync(false))); },
+                null, intervalMs, intervalMs);
         }
 
         public async Task RefreshAsync(bool force)

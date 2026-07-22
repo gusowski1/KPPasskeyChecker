@@ -1,4 +1,4 @@
-﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared
+﻿// Shared KeeRadar infrastructure — canonical source: KPPasskeyChecker/src/Shared. Edit only there; propagate to consumer repos via sync-shared.ps1. Do not edit synced copies.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,6 +15,20 @@ namespace KeeRadar.Shared.DomainMatching
     {
         private const string PslUrl     = "https://publicsuffix.org/list/public_suffix_list.dat";
         private static readonly TimeSpan PslCacheTtl = TimeSpan.FromDays(7);
+
+        // Cap buffered response size so a compromised/hostile endpoint cannot exhaust memory by
+        // returning a huge body (mirrors ConditionalHttpFetcher.MaxResponseBytes). The real PSL is
+        // well under 300 KB.
+        private const long MaxResponseBytes = 16L * 1024 * 1024;
+
+        // Static singleton (one per AppDomain), analogous to ConditionalHttpFetcher._http: avoids
+        // constructing/disposing a new HttpClient (and its underlying socket handler) on every
+        // refresh cycle, which can exhaust ephemeral ports under load.
+        private static readonly HttpClient _http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxResponseContentBufferSize = MaxResponseBytes
+        };
 
         // Written once by the background loader, read on the UI thread for every column cell.
         // A volatile reference suffices (atomic publish + visibility) and avoids per-cell locking.
@@ -46,20 +60,17 @@ namespace KeeRadar.Shared.DomainMatching
                 return File.ReadAllText(cacheFile, System.Text.Encoding.UTF8);
             }
 
-            using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30), MaxResponseContentBufferSize = 16L * 1024 * 1024 })
-            {
-                string content = await http.GetStringAsync(PslUrl).ConfigureAwait(false);
-                string tmp = cacheFile + ".tmp";
-                File.WriteAllText(tmp, content, System.Text.Encoding.UTF8);
-                // Guarded swap: on .NET 4.8 File.Move throws IOException when the destination
-                // already exists, which would make every refresh after the 7-day TTL fail. Mirror
-                // the atomic pattern in FileSystemJsonCache.AtomicWrite.
-                if (File.Exists(cacheFile))
-                    File.Replace(tmp, cacheFile, null);  // atomic swap on the same volume
-                else
-                    File.Move(tmp, cacheFile);
-                return content;
-            }
+            string content = await _http.GetStringAsync(PslUrl).ConfigureAwait(false);
+            string tmp = cacheFile + ".tmp";
+            File.WriteAllText(tmp, content, System.Text.Encoding.UTF8);
+            // Guarded swap: on .NET 4.8 File.Move throws IOException when the destination
+            // already exists, which would make every refresh after the 7-day TTL fail. Mirror
+            // the atomic pattern in FileSystemJsonCache.AtomicWrite.
+            if (File.Exists(cacheFile))
+                File.Replace(tmp, cacheFile, null);  // atomic swap on the same volume
+            else
+                File.Move(tmp, cacheFile);
+            return content;
         }
 
         public static IEnumerable<string> GetCandidates(string rawHost)
