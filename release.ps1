@@ -335,14 +335,30 @@ function Invoke-EnsurePr([string]$gh, [string]$branch, [string]$ver, [string]$no
     if ($LASTEXITCODE -ne 0) { throw "gh pr list failed (exit $LASTEXITCODE)." }
     if ($listJson -match '\{') {
         Write-Host ("  A PR for '{0}' is already open." -f $branch) -ForegroundColor Green
-    } else {
-        & $gh pr create --base main --head $branch --title ("Release {0}" -f $ver) --body $notes
-        if ($LASTEXITCODE -ne 0) {
-            throw ("gh pr create failed (exit $LASTEXITCODE). " +
-                "'Resource not accessible by personal access token (createPullRequest)' means the token " +
-                "lacks 'Pull requests: Read and write' -- add it to the fine-grained PAT, then re-run " +
-                "Prepare (it skips to opening the PR automatically).")
-        }
+        return
+    }
+
+    # The body goes via a temp file for the same reason the Publish stage uses --notes-file:
+    # PowerShell 5.1 mangles a multi-line native argument, so the '-' bullet lines of a CHANGELOG
+    # section arrive at gh as separate arguments instead of as body text.
+    $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) ("pr-body-{0}.md" -f $ver)
+    [System.IO.File]::WriteAllText($bodyFile, $notes, (New-Object System.Text.UTF8Encoding($false)))
+    $code = 1
+    try {
+        & $gh pr create --base main --head $branch --title ("Release {0}" -f $ver) --body-file $bodyFile
+        $code = $LASTEXITCODE
+    } finally {
+        Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($code -ne 0) {
+        # gh printed its own message above; do not overwrite it with a guess. Naming one probable
+        # cause as if it were the diagnosis sends whoever reads this down that path even when the
+        # real reason was something else entirely.
+        throw ("gh pr create failed (exit {0}). The actual reason is in gh's output above. " -f $code) +
+            "If it reads 'Resource not accessible by personal access token', the token lacks " +
+            "'Pull requests: Read and write'. Prepare is resumable: fix the cause and re-run it, " +
+            "it skips straight to opening the PR."
     }
 }
 
