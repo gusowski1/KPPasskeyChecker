@@ -287,8 +287,10 @@ function Get-Assets {
     $plgx = Join-Path $buildDir ("{0}.plgx" -f $pluginName)
     $dll  = Join-Path $buildDir ("{0}.dll"  -f $pluginName)
     foreach ($a in @($plgx, $dll)) { if (-not (Test-Path $a)) { throw "Build artifact missing: $a" } }
-    # Use forward slashes: gh treats backslashes as escape characters and mis-parses the path.
-    return @("build/{0}.plgx" -f $pluginName, "build/{0}.dll" -f $pluginName)
+    # Each -f is parenthesised: without the parens the comma binds into the first -f's argument
+    # list, so "...dll" is consumed as an unused format arg and the array collapses to a single
+    # (.plgx-only) element. Forward slashes keep the relative path portable for gh's asset glob.
+    return @(("build/{0}.plgx" -f $pluginName), ("build/{0}.dll" -f $pluginName))
 }
 
 function Confirm-Or-Exit([string]$prompt) {
@@ -605,15 +607,27 @@ switch ($Stage) {
         $assets    = Get-Assets $plugin
         $typeArgs  = Get-TypeArgs $Type
 
-        # Notes go via a temp file: mixing splatted arrays with a multi-line --notes string trips
-        # PowerShell 5.1 native-arg quoting ('-' bullets become asset globs -> "no matches found").
-        # build\ is gitignored so this file is never committed.
+        # Notes go via a temp file (not an inline --notes) and the WHOLE call is built as one flat
+        # argument array and splatted once. Both guard the same PowerShell 5.1 hazard: mixing inline
+        # tokens with separately-splatted arrays (@assets ... @typeArgs), or a multi-line --notes with
+        # '-' bullets, corrupts native-argument quoting so a fragment reaches gh as a stray asset
+        # pattern -- which gh reports as "no matches found for `<fragment>`". build\ is gitignored so
+        # the notes file is never committed.
         $notesFile = Join-Path $RepoRoot 'build\_relnotes.md'
         Set-Content $notesFile $notes -Encoding utf8
 
+        $ghArgs = @('release', 'create', $tag) + $assets +
+                  @('--target', 'main',
+                    '--title', ("{0} {1}" -f $plugin, $Version),
+                    '--notes-file', $notesFile) +
+                  $typeArgs
+
         Write-Host ("==> Creating GitHub release {0} ({1})" -f $tag, $Type) -ForegroundColor Cyan
-        & $gh release create $tag @assets --target main --title ("{0} {1}" -f $plugin, $Version) --notes-file $notesFile @typeArgs
-        if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)." }
+        Write-Host ("  assets: {0}" -f ($assets -join ', ')) -ForegroundColor DarkGray
+        & $gh @ghArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw ("gh release create failed (exit {0}). gh's own error is printed directly above this line." -f $LASTEXITCODE)
+        }
 
         Write-Host ""
         Write-Host ("Done. Release {0} created as '{1}'." -f $tag, $Type) -ForegroundColor Green
